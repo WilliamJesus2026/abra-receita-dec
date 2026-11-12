@@ -366,12 +366,13 @@
 
   // ---------------- universo (INF DEC / ADT DEC em abas separadas) e filtros ativos ----------------
   const uniAtual = () => !S.grupos ? 'geral' : S.grupos.size === 1 ? [...S.grupos][0] : 'geral';
+  const LOGO_UNI = { 'INF DEC': 'logo_abracadabra.png', 'ADT DEC': 'logo_abracasa.png', geral: 'logo-abra.svg' };
   function uniNav() {
     const cur = uniAtual(), f = filtro();
     const item = (k, nome) => {
       const ff = Object.assign({}, f, { grupos: k === 'geral' ? null : new Set([k]), classes: null });
       const a = um('x', ff), A = tot(a, 2026), B = tot(a, 2025);
-      return `<button data-a="uni:${esc(k)}" class="${cur === k ? 'on' : ''}" data-u="${esc(k)}"><img src="logo-abra.svg" alt=""><span><b>${esc(nome)}</b><small>${brlc(A.rec)} · ${varf(L.vari(A.rec, B.rec))} · Mk ${mkf(A.mk)}</small></span></button>`;
+      return `<button data-a="uni:${esc(k)}" class="${cur === k ? 'on' : ''}" data-u="${esc(k)}"><img src="${LOGO_UNI[k]}" alt=""><span><b>${esc(nome)}</b><small>${brlc(A.rec)} · ${varf(L.vari(A.rec, B.rec))} · Mk ${mkf(A.mk)}</small></span></button>`;
     };
     return item('INF DEC', 'INF DEC · Infantil') + item('ADT DEC', 'ADT DEC · Adulto') + item('geral', 'Visão geral');
   }

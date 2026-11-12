@@ -154,7 +154,7 @@ def main():
             os.remove(p)
     with open(os.path.join(DIST, 'dados.enc'), 'wb') as f:
         f.write(salt + iv + cifrado)
-    for n in ('app.js', 'logica.js', 'app.css', 'logo-abra.svg'):
+    for n in ('app.js', 'logica.js', 'app.css', 'logo-abra.svg', 'logo_abracadabra.png', 'logo_abracasa.png'):
         shutil.copy(os.path.join(PUB, n), os.path.join(DIST, n))
     html = ler(os.path.join(PUB, 'index.html'))
     html = html.replace('<script src="dados.js" charset="utf-8"></script>\n', '')
