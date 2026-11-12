@@ -1,0 +1,4 @@
+{
+  "projects": { "default": "abra-hub-campanhas" },
+  "targets": { "abra-hub-campanhas": { "hosting": { "receita": ["abra-receita-dec"] } } }
+}

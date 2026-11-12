@@ -1,0 +1,7 @@
+# dados confidenciais e senha: nunca vão para o git
+ACESSO-INICIAL.txt
+public/dados.js
+dados/
+dist/
+*.log
+__pycache__/

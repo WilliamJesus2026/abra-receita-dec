@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "target": "receita",
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "ACESSO-INICIAL.txt"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      }
+    ],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}
