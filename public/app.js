@@ -73,14 +73,16 @@
   document.addEventListener('error', e => { const t = e.target; if (t && t.tagName === 'IMG' && !t.classList.contains('semfoto')) { t.classList.add('semfoto'); t.src = 'logo-abra.svg'; } }, true);
   const periodo = () => S.mes ? MESES_LONGO[S.mes - 1] + '/2026' : '2026';
 
-  function card(r, n, nav) {
+  function card(r, n, nav, baseLinha) {
     const it = r.it;
     return `<div class="card" data-i="${it.i}" data-nav="${nav}"><div class="ft">${foto(it)}${n ? `<span class="rk">${n}</span>` : ''}</div>
-      <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div>${posicao(it)}</div>
+      <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div>${posicao(it)}</div>${baseLinha ? `<div class="peso2">${pesoBarra(r.a.rec / baseLinha)}<small><b>${pct(r.a.rec / baseLinha)}</b> da linha</small></div>` : ''}
       <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'novo vs 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b></div></div></div></div>`;
   }
 
   // ---------- tela ----------
+  let CTX = { total: 0, cls: new Map(), lin: new Map(), item: new Map() };
+  const pesoBarra = f => `<span class="pbar"><i style="width:${Math.max(0, Math.min(100, (f || 0) * 100)).toFixed(1)}%"></i></span>`;
   let NAV = new Map();   // chave -> ids dos produtos, na ordem mostrada (para ‹ › no detalhe)
   function render() {
     document.body.dataset.uni = S.uni;
@@ -88,6 +90,8 @@
       const t = somar(itens(g, S.mes).filter(passa)); return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${brlc(t.a.rec)} · Mk ${mkf(t.a.mk)}</small></span></button>`;
     }).join('');
     const todos = itens(S.uni, S.mes), rows = todos.filter(passa); NAV = new Map();
+    CTX = { total: 0, cls: new Map(), lin: new Map(), item: new Map() };
+    rows.filter(r => r.a.rec > 0).forEach(r => { CTX.total += r.a.rec; CTX.cls.set(r.it.classe, (CTX.cls.get(r.it.classe) || 0) + r.a.rec); const k = r.it.classe + '|' + r.it.linha; CTX.lin.set(k, (CTX.lin.get(k) || 0) + r.a.rec); CTX.item.set(r.it.i, r.a.rec); });
     const q = norm(S.q.trim());
     if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q, filtrosHtml(todos, todos));
     const classes = agrupar(rows, it => it.classe), all = somar(rows);
@@ -98,15 +102,16 @@
     const linhas = agrupar(sel.rows, it => it.linha), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
     const lista = `<aside class="classes">
       <button class="classe ${!S.cls ? 'on' : ''}" data-cls=""><b>Todas as classes</b><small>${brlc(all.a.rec)} · Mk ${mkf(all.a.mk)}</small></button>
-      ${classes.map(c => `<button class="classe ${S.cls === c.k ? 'on' : ''}" data-cls="${esc(c.k)}"><b>${esc(curto(c.k))}</b><small>${brlc(c.a.rec)} · Mk ${mkf(c.a.mk)} · ${c.rows.length} itens</small></button>`).join('')}</aside>`;
+      ${classes.map(c => `<button class="classe ${S.cls === c.k ? 'on' : ''}" data-cls="${esc(c.k)}"><b>${esc(curto(c.k))}</b><small>${brlc(c.a.rec)} · Mk ${mkf(c.a.mk)} · ${c.rows.length} itens</small>${pesoBarra(all.a.rec ? c.a.rec / all.a.rec : 0)}<small><b>${pct(all.a.rec ? c.a.rec / all.a.rec : null)}</b> do total ${esc(NOME[S.uni])}</small></button>`).join('')}</aside>`;
     const cab = `<div class="cab"><h1>${esc(S.cls ? curto(S.cls) : 'Todas as classes')} <span class="muted" style="font-size:16px;font-weight:500">· ${esc(NOME[S.uni])}</span></h1>
-      <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b></span><span>${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ${sel.rows.length} ${sel.rows.length === 1 ? 'produto' : 'produtos'}</span></div></div>`;
+      <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b></span>${S.cls ? `<span><b class="num">${pct(all.a.rec ? sel.a.rec / all.a.rec : null)}</b> do total de ${esc(NOME[S.uni])}</span>` : ''}<span>${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ${sel.rows.length} ${sel.rows.length === 1 ? 'produto' : 'produtos'}</span></div></div>`;
+    const baseL = S.cls ? sel.a.rec : all.a.rec;
     const secoes = vis.map(l => {
       const aberta = S.abertas.has((S.cls || '') + '|' + l.k), ord = ordenar(l.rows), mostra = aberta ? ord : ord.slice(0, TOP), key = 'l' + NAV.size;
       NAV.set(key, mostra.map(r => r.it.i));
       const fs = [...l.rows.reduce((m, r) => m.set(r.it.fornecedor, (m.get(r.it.fornecedor) || 0) + r.a.rec), new Map())].sort((x, y) => y[1] - x[1]).slice(0, 2).map(x => x[0]).join(', ');
-      return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkf(l.a.mk)}</b> · ${esc(fs)}</span></div>
-        <div class="cards">${mostra.map((r, n) => card(r, n + 1, key)).join('')}</div>
+      return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkf(l.a.mk)}</b> · ${esc(fs)}</span><span class="peso">${pesoBarra(baseL ? l.a.rec / baseL : 0)}<b>${pct(baseL ? l.a.rec / baseL : null)}</b> ${S.cls ? 'da classe' : 'do total'}</span></div>
+        <div class="cards">${mostra.map((r, n) => card(r, n + 1, key, l.a.rec)).join('')}</div>
         ${l.rows.length > TOP ? `<button class="btn mais" data-linha="${esc((S.cls || '') + '|' + l.k)}">${aberta ? 'Mostrar só os 5 mais vendidos' : 'Ver todos os ' + l.rows.length + ' produtos desta linha'}</button>` : ''}</section>`;
     }).join('');
     $('#view').innerHTML = `${filtrosHtml(todos, doClasse)}<div class="grade">${lista}<div>${cab}${secoes || '<div class="vazio">Nenhum produto com venda neste período.</div>'}
@@ -141,6 +146,7 @@
         ${it.link ? `<div style="margin-top:6px"><a href="https://${esc(String(it.link).replace(/^https?:\/\//, ''))}" target="_blank" rel="noopener">ver no site ↗</a></div>` : ''}</div></div>
       <div class="num4"><div><small>Vende em 2026</small><b class="num">${brl(A.rec)}</b><br><span class="${cv(L.vari(A.rec, B.rec))}">${varf(L.vari(A.rec, B.rec))} vs 2025</span></div><div><small>Vendeu em 2025</small><b class="num">${brl(B.rec)}</b></div>
         <div><small>Markup 2026</small><b class="num">${mkf(A.mk)}</b></div><div><small>Markup 2025</small><b class="num">${mkf(B.mk)}</b></div></div>
+      ${CTX.item.has(i) ? `<div class="num4"><div><small>Na linha ${esc(it.linha)}</small><b class="num">${pct(CTX.lin.get(it.classe + '|' + it.linha) ? CTX.item.get(i) / CTX.lin.get(it.classe + '|' + it.linha) : null)}</b><br><span class="muted">das vendas da linha na classe</span></div><div><small>Na classe ${esc(curto(it.classe))}</small><b class="num">${pct(CTX.cls.get(it.classe) ? CTX.item.get(i) / CTX.cls.get(it.classe) : null)}</b><br><span class="muted">das vendas da classe</span></div><div><small>No total ${esc(NOME[S.uni])}</small><b class="num">${pct(CTX.total ? CTX.item.get(i) / CTX.total : null)}</b><br><span class="muted">das vendas de ${esc(periodo())}</span></div></div>` : ''}
       <div class="leg"><span><i style="background:var(--c25)"></i>2025</span><span><i style="background:var(--accent)"></i>2026</span><span>vendas mês a mês</span></div>${meses(acc)}`;
     $('#modal').classList.add('on'); $('#veil').classList.add('on');
   }

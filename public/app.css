@@ -114,3 +114,18 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 70px}
   header.top{padding:8px 12px}
   .uni button small{display:none}
 }
+
+/* peso de cada nível no de cima */
+.pbar{display:block;height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;min-width:60px}
+.pbar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.classe .pbar{margin:6px 0 3px;background:var(--surface-2)}
+.classe.on .pbar{background:rgba(255,255,255,.28)}
+.classe.on .pbar i{background:var(--on-accent)}
+.classe small b{font-size:12.5px}
+.linha .lh .peso{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text-muted)}
+.linha .lh .peso .pbar{width:110px}
+.linha .lh .peso b{color:var(--accent);font-size:17px}
+.card .peso2{display:flex;flex-direction:column;gap:3px;margin-top:3px}
+.card .peso2 small{font-size:11.5px;color:var(--text-muted)}
+.card .peso2 b{color:var(--accent)}
+.classe small b{display:inline}
