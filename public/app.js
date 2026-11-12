@@ -2,6 +2,8 @@
 // Dados: dados.js (gerar.py). Cálculo: logica.js. Mk = (Receita - CMV) / CMV.
 (function () {
   'use strict';
+  if (window.__RDEC_APP) return;   // segunda carga do script duplicaria os ouvintes de clique e quebraria a navegação
+  window.__RDEC_APP = true;
   const D = window.DEC, L = window.Logica.criar(D);
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -11,23 +13,30 @@
   const brlc = v => { if (v == null) return '–'; const a = Math.abs(v); return a >= 1e6 ? 'R$ ' + nf2.format(v / 1e6) + ' mi' : a >= 1e4 ? 'R$ ' + nf0.format(v / 1e3) + ' mil' : brl(v); };
   const pct = v => v == null || !isFinite(v) ? '–' : (v * 100).toFixed(1).replace('.', ',') + '%';
   const varf = v => v == null ? '' : (v > 0 ? '+' : '') + pct(v);
-  const mkf = v => v == null ? '–' : nf2.format(v);
+  const mkf = v => v == null ? '–' : nf2.format(v * 100) + '%';   // igual à coluna Mk da dinâmica (ex.: 137,89%)
+  const dpp = (b, a) => b == null || a == null ? null : (b - a) * 100;   // Mk 2025 − Mk 2026, em pontos percentuais
+  const ppf = v => v == null ? '–' : (v > 0 ? '+' : '') + nf2.format(v) + ' pp';
   const cv = v => v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '';
   const MESES = L.MESES, tot = L.tot;
   const mesesComDado = [...new Set(D.fatos.map(x => x[1] % 100))].sort((a, b) => a - b);
   const MESES_LONGO = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  const LOGO = { 'INF DEC': 'logo_abracadabra.png', 'ADT DEC': 'logo_abracasa.png' };
-  const NOME = { 'INF DEC': 'INF DEC', 'ADT DEC': 'ADT DEC' };
+  const FORN = 'FORN';
+  const LOGO = { 'INF DEC': 'logo_abracadabra.png', 'ADT DEC': 'logo_abracasa.png', FORN: 'logo-abra.svg' };
+  const NOME = { 'INF DEC': 'INF DEC', 'ADT DEC': 'ADT DEC', FORN: 'Fornecedores' };
   const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const curto = c => c.replace(/^(INF|ADT) DEC /, '');
   const LIM_LINHAS = 10, TOP = 5;
 
-  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', lin: '', pos: '', mk: '', ord: 'rec' };
+  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', cf: '', lin: '', pos: '', mk: '', ord: 'rec' };
   try { let t = localStorage.getItem('rdec-tema'); if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark'; if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
   // ---------- dados do universo no período escolhido ----------
+  const modoF = () => S.uni === FORN;
+  const chaveG = it => modoF() ? it.fornecedor : it.classe;           // o que a lista da esquerda agrupa
+  const nomeG = k => modoF() ? k : curto(k);
+  const totNome = () => modoF() ? 'INF + ADT' : NOME[S.uni];
   function itens(uni, mes) {
-    const f = { modo: 'ano', grupos: new Set([uni]), meses: mes ? new Set([mes]) : null };
+    const f = { modo: 'ano', grupos: new Set(uni === FORN ? ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g)) : [uni]), meses: mes ? new Set([mes]) : null };
     return [...L.consulta(f, it => it.i)].map(([i, acc]) => ({ it: L.itens[i], acc, a: tot(acc, 2026), b: tot(acc, 2025) })).filter(r => r.a.rec > 0 || r.b.rec > 0);
   }
   const somar = rows => { const acc = L.somarAcc(rows.map(r => r.acc)); return { a: tot(acc, 2026), b: tot(acc, 2025) }; };
@@ -39,13 +48,13 @@
 
   // ---------- filtros ----------
   const POS = { '': 'Posição: todas', venda: 'À venda (imediata, encomenda, prazo, loja)', imediata: 'Entrega imediata', encomenda: 'Encomenda / prazo', loja: 'Estoque loja', suspensa: 'Venda suspensa', fl: 'Fora de linha' };
-  const MK = { '': 'Markup: todos', neg: 'Negativo (abaixo do custo)', baixo: 'Abaixo de 1', medio: 'De 1 a 2', alto: 'Acima de 2' };
+  const MK = { '': 'Markup: todos', neg: 'Negativo (abaixo do custo)', baixo: 'Abaixo de 100%', medio: 'De 100% a 200%', alto: 'Acima de 200%' };
   const ORD = { rec: 'Mais vendidos', mk: 'Maior markup', mkmenor: 'Menor markup', cresc: 'Mais cresceram (R$)', queda: 'Mais caíram (R$)' };
   const passaPos = (it, p) => p === 'venda' ? (['Imediata', 'Encomenda', 'Prazo', 'Estoque loja'].includes(it.posTipo) && !it.fl) : p === 'imediata' ? it.posTipo === 'Imediata' : p === 'encomenda' ? (it.posTipo === 'Encomenda' || it.posTipo === 'Prazo') : p === 'loja' ? it.posTipo === 'Estoque loja' : p === 'suspensa' ? it.posTipo === 'Suspensa/Bloqueada' : p === 'fl' ? it.fl : true;
   const passaMk = (mk, k) => !k || (mk != null && (k === 'neg' ? mk < 0 : k === 'baixo' ? mk >= 0 && mk < 1 : k === 'medio' ? mk >= 1 && mk <= 2 : mk > 2));
-  const passaX = (r, sem) => (sem === 'forn' || !S.forn || r.it.fornecedor === S.forn) && (sem === 'lin' || !S.lin || r.it.linha === S.lin) && passaPos(r.it, S.pos) && passaMk(r.a.mk, S.mk);
+  const passaX = (r, sem) => (modoF() || sem === 'forn' || !S.forn || r.it.fornecedor === S.forn) && (!modoF() || sem === 'cf' || !S.cf || r.it.classe === S.cf) && (sem === 'lin' || !S.lin || r.it.linha === S.lin) && passaPos(r.it, S.pos) && passaMk(r.a.mk, S.mk);
   const passa = r => passaX(r);
-  const nAtivos = () => [S.forn, S.lin, S.pos, S.mk].filter(Boolean).length + (S.ord !== 'rec' ? 1 : 0);
+  const nAtivos = () => [modoF() ? S.cf : S.forn, S.lin, S.pos, S.mk].filter(Boolean).length + (S.ord !== 'rec' ? 1 : 0);
   const chaveOrd = r => S.ord === 'mk' ? (r.a.mk == null ? -1e9 : r.a.mk) : S.ord === 'mkmenor' ? (r.a.mk == null ? -1e9 : -r.a.mk) : S.ord === 'cresc' ? r.a.rec - r.b.rec : S.ord === 'queda' ? r.b.rec - r.a.rec : r.a.rec;
   const ordenar = rows => rows.slice().sort((x, y) => chaveOrd(y) - chaveOrd(x));
   function filtrosHtml(todos, rowsClasse) {
@@ -54,7 +63,10 @@
     const lm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'lin')).forEach(r => lm.set(r.it.linha, (lm.get(r.it.linha) || 0) + r.a.rec));
     const lins = [...lm].sort((x, y) => y[1] - x[1]);
     const sel = (id, atual, ops, vazio) => `<select data-f="${id}" class="${atual ? 'ativo' : ''}" aria-label="${esc(vazio)}"><option value="">${esc(vazio)}</option>${ops.map(([v, n]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
-    return `<div class="filtros">${sel('forn', S.forn, forns.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Fornecedor: todos')}${sel('lin', S.lin, lins.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Linha: todas')}${sel('pos', S.pos, Object.entries(POS).filter(x => x[0]).map(x => x), 'Posição: todas')}${sel('mk', S.mk, Object.entries(MK).filter(x => x[0]), 'Markup: todos')}
+    const cm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'cf')).forEach(r => cm.set(r.it.classe, (cm.get(r.it.classe) || 0) + r.a.rec));
+    const clss = [...cm].sort((x, y) => y[1] - x[1]);
+    const primeiro = modoF() ? sel('cf', S.cf, clss.map(([n, v]) => [n, curto(n) + ' · ' + brlc(v)]), 'Classe: todas') : sel('forn', S.forn, forns.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Fornecedor: todos');
+    return `<div class="filtros">${primeiro}${sel('lin', S.lin, lins.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Linha: todas')}${sel('pos', S.pos, Object.entries(POS).filter(x => x[0]).map(x => x), 'Posição: todas')}${sel('mk', S.mk, Object.entries(MK).filter(x => x[0]), 'Markup: todos')}
       <select data-f="ord" class="${S.ord !== 'rec' ? 'ativo' : ''}" aria-label="Ordenar">${Object.entries(ORD).map(([v, n]) => `<option value="${v}" ${S.ord === v ? 'selected' : ''}>Ordenar: ${esc(n)}</option>`).join('')}</select>
       ${nAtivos() ? `<button class="btn" data-limpar>Limpar filtros (${nAtivos()})</button>` : ''}</div>`;
   }
@@ -77,7 +89,7 @@
     const it = r.it;
     return `<div class="card" data-i="${it.i}" data-nav="${nav}"><div class="ft">${foto(it)}${n ? `<span class="rk">${n}</span>` : ''}</div>
       <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div class="pb">${posicao(it)}</div>${baseLinha ? `<div class="peso2">${pesoBarra(r.a.rec / baseLinha)}<small><b>${pct(r.a.rec / baseLinha)}</b> da linha</small></div>` : ''}
-      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'sem venda em 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b></div></div></div></div>`;
+      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'sem venda em 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b><small style="text-transform:none" title="Markup 2025 − Markup 2026: ${esc(ppf(dpp(r.b.mk, r.a.mk)))}">2025: ${mkf(r.b.mk)}</small></div></div></div></div>`;
   }
 
   // ---------- tela ----------
@@ -86,31 +98,35 @@
   let NAV = new Map();   // chave -> ids dos produtos, na ordem mostrada (para ‹ › no detalhe)
   function render() {
     document.body.dataset.uni = S.uni;
-    $('#uni').innerHTML = ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g)).map(g => {
-      const t = somar(itens(g, S.mes).filter(passa)); return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${brlc(t.a.rec)} · Mk ${mkf(t.a.mk)}</small></span></button>`;
+    const atual = S.uni;
+    $('#uni').innerHTML = ['INF DEC', 'ADT DEC', FORN].filter(g => g === FORN || D.grupos.includes(g)).map(g => {
+      S.uni = g; const rs = itens(g, S.mes).filter(passa), t = somar(rs); S.uni = atual;
+      const sub = g === FORN ? agrupar(rs, it => it.fornecedor).length + ' · ' + brlc(t.a.rec) : brlc(t.a.rec) + ' · Mk ' + mkf(t.a.mk);
+      return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${sub}</small></span></button>`;
     }).join('');
     const todos = itens(S.uni, S.mes), rows = todos.filter(passa); NAV = new Map();
     CTX = { total: 0, cls: new Map(), lin: new Map(), item: new Map() };
-    rows.filter(r => r.a.rec > 0).forEach(r => { CTX.total += r.a.rec; CTX.cls.set(r.it.classe, (CTX.cls.get(r.it.classe) || 0) + r.a.rec); const k = r.it.classe + '|' + r.it.linha; CTX.lin.set(k, (CTX.lin.get(k) || 0) + r.a.rec); CTX.item.set(r.it.i, r.a.rec); });
+    rows.filter(r => r.a.rec > 0).forEach(r => { CTX.total += r.a.rec; CTX.cls.set(chaveG(r.it), (CTX.cls.get(chaveG(r.it)) || 0) + r.a.rec); const k = chaveG(r.it) + '|' + r.it.classe + '|' + r.it.linha; CTX.lin.set(k, (CTX.lin.get(k) || 0) + r.a.rec); CTX.item.set(r.it.i, r.a.rec); });
     const q = norm(S.q.trim());
     if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q, filtrosHtml(todos, todos));
-    const classes = agrupar(rows, it => it.classe), all = somar(rows);
+    const classes = agrupar(rows, chaveG), all = somar(rows);
     if (S.cls && !classes.find(c => c.k === S.cls)) S.cls = null;
-    const doClasse = S.cls ? todos.filter(r => r.it.classe === S.cls) : todos;
+    const doClasse = S.cls ? todos.filter(r => chaveG(r.it) === S.cls) : todos;
+    const selAll = S.cls ? rows.filter(r => chaveG(r.it) === S.cls) : rows;   // inclui itens só de 2025, para o markup de 2025 ficar completo
     if (S.lin && !doClasse.some(r => r.it.linha === S.lin && r.a.rec > 0)) { S.lin = ''; return render(); }
     const sel = S.cls ? classes.find(c => c.k === S.cls) : { k: null, rows: rows.filter(r => r.a.rec > 0), a: all.a, b: all.b };
-    const linhas = agrupar(sel.rows, it => it.linha), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
+    const linhas = agrupar(selAll, it => modoF() ? curto(it.classe) + ' › ' + it.linha : it.linha), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
     const lista = `<aside class="classes">
-      <button class="classe ${!S.cls ? 'on' : ''}" data-cls=""><b>Todas as classes</b><small>${brlc(all.a.rec)} · Mk ${mkf(all.a.mk)}</small></button>
-      ${classes.map(c => `<button class="classe ${S.cls === c.k ? 'on' : ''}" data-cls="${esc(c.k)}"><b>${esc(curto(c.k))}</b><small>${brlc(c.a.rec)} · Mk ${mkf(c.a.mk)} · ${c.rows.length} itens</small>${pesoBarra(all.a.rec ? c.a.rec / all.a.rec : 0)}<small><b>${pct(all.a.rec ? c.a.rec / all.a.rec : null)}</b> do total ${esc(NOME[S.uni])}</small></button>`).join('')}</aside>`;
-    const cab = `<div class="cab"><h1>${esc(S.cls ? curto(S.cls) : 'Todas as classes')} <span class="muted" style="font-size:16px;font-weight:500">· ${esc(NOME[S.uni])}</span></h1>
-      <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b></span>${S.cls ? `<span><b class="num">${pct(all.a.rec ? sel.a.rec / all.a.rec : null)}</b> do total de ${esc(NOME[S.uni])}</span>` : ''}<span>${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ${sel.rows.length} ${sel.rows.length === 1 ? 'produto' : 'produtos'}</span></div></div>`;
+      <button class="classe ${!S.cls ? 'on' : ''}" data-cls=""><b>${modoF() ? 'Todos os fornecedores' : 'Todas as classes'}</b><small>${brlc(all.a.rec)} · Mk ${mkf(all.a.mk)}</small></button>
+      ${classes.map(c => `<button class="classe ${S.cls === c.k ? 'on' : ''}" data-cls="${esc(c.k)}"><b>${esc(nomeG(c.k))}</b><small>${brlc(c.a.rec)} · Mk ${mkf(c.a.mk)} · ${c.rows.length} itens</small>${pesoBarra(all.a.rec ? c.a.rec / all.a.rec : 0)}<small><b>${pct(all.a.rec ? c.a.rec / all.a.rec : null)}</b> do total ${esc(totNome())}</small></button>`).join('')}</aside>`;
+    const cab = `<div class="cab"><h1>${esc(S.cls ? nomeG(S.cls) : (modoF() ? 'Todos os fornecedores' : 'Todas as classes'))} <span class="muted" style="font-size:16px;font-weight:500">· ${esc(totNome())}</span></h1>
+      <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b> <span class="muted">(2025: ${mkf(sel.b.mk)} · 2025 − 2026: ${ppf(dpp(sel.b.mk, sel.a.mk))})</span></span>${S.cls ? `<span><b class="num">${pct(all.a.rec ? sel.a.rec / all.a.rec : null)}</b> do total de ${esc(totNome())}</span>` : ''}<span>${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ${sel.rows.length} ${sel.rows.length === 1 ? 'produto' : 'produtos'}</span></div></div>`;
     const baseL = S.cls ? sel.a.rec : all.a.rec;
     const secoes = vis.map(l => {
       const aberta = S.abertas.has((S.cls || '') + '|' + l.k), ord = ordenar(l.rows), mostra = aberta ? ord : ord.slice(0, TOP), key = 'l' + NAV.size;
       NAV.set(key, mostra.map(r => r.it.i));
       const fs = [...l.rows.reduce((m, r) => m.set(r.it.fornecedor, (m.get(r.it.fornecedor) || 0) + r.a.rec), new Map())].sort((x, y) => y[1] - x[1]).slice(0, 2).map(x => x[0]).join(', ');
-      return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkf(l.a.mk)}</b> · ${esc(fs)}</span><span class="peso">${pesoBarra(baseL ? l.a.rec / baseL : 0)}<b>${pct(baseL ? l.a.rec / baseL : null)}</b> ${S.cls ? 'da classe' : 'do total'}</span></div>
+      return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkf(l.a.mk)}</b> <span title="Markup 2025 − Markup 2026">(2025: ${mkf(l.b.mk)} · 2025 − 2026: ${ppf(dpp(l.b.mk, l.a.mk))})</span>${modoF() ? '' : ' · ' + esc(fs)}</span><span class="peso">${pesoBarra(baseL ? l.a.rec / baseL : 0)}<b>${pct(baseL ? l.a.rec / baseL : null)}</b> ${S.cls ? (modoF() ? 'do fornecedor' : 'da classe') : 'do total'}</span></div>
         <div class="cards">${mostra.map((r, n) => card(r, n + 1, key, l.a.rec)).join('')}</div>
         ${l.rows.length > TOP ? `<button class="btn mais" data-linha="${esc((S.cls || '') + '|' + l.k)}">${aberta ? 'Mostrar só os 5 mais vendidos' : 'Ver todos os ' + l.rows.length + ' produtos desta linha'}</button>` : ''}</section>`;
     }).join('');
@@ -121,7 +137,7 @@
   function renderBusca(rows, q, filtros) {
     const res = ordenar(rows.filter(r => norm(r.it.nome).includes(q) || r.it.cod.includes(q) || norm(r.it.fornecedor).includes(q) || norm(r.it.linha).includes(q)));
     NAV.set('busca', res.slice(0, 60).map(r => r.it.i));
-    $('#view').innerHTML = `${filtros || ''}<div class="cab"><h1>Busca: “${esc(S.q)}”</h1><div class="res"><span>${res.length} produtos em ${esc(NOME[S.uni])} · ${esc(periodo())}</span></div></div>
+    $('#view').innerHTML = `${filtros || ''}<div class="cab"><h1>Busca: “${esc(S.q)}”</h1><div class="res"><span>${res.length} produtos em ${esc(totNome())} · ${esc(periodo())}</span></div></div>
       ${res.length ? `<div class="cards">${res.slice(0, 60).map((r, n) => card(r, 0, 'busca')).join('')}</div>` : '<div class="vazio">Nenhum produto encontrado.</div>'}`;
   }
   const m = D.meta;
@@ -145,8 +161,8 @@
         <div class="muted" style="font-size:13px">${it.disp != null ? 'Disponível: <b>' + nf0.format(it.disp) + '</b> · ' : ''}${it.preco != null ? 'Preço: <b>R$ ' + nf2.format(it.preco) + '</b>' : ''}${it.custo != null ? ' · Custo: R$ ' + nf2.format(it.custo) : ''}</div>
         ${it.link ? `<div style="margin-top:6px"><a href="https://${esc(String(it.link).replace(/^https?:\/\//, ''))}" target="_blank" rel="noopener">ver no site ↗</a></div>` : ''}</div></div>
       <div class="num4"><div><small>Vende em 2026</small><b class="num">${brl(A.rec)}</b><br><span class="${cv(L.vari(A.rec, B.rec))}">${varf(L.vari(A.rec, B.rec))} vs 2025</span></div><div><small>Vendeu em 2025</small><b class="num">${brl(B.rec)}</b></div>
-        <div><small>Markup 2026</small><b class="num">${mkf(A.mk)}</b></div><div><small>Markup 2025</small><b class="num">${mkf(B.mk)}</b></div></div>
-      ${CTX.item.has(i) ? `<div class="num4"><div><small>Na linha ${esc(it.linha)}</small><b class="num">${pct(CTX.lin.get(it.classe + '|' + it.linha) ? CTX.item.get(i) / CTX.lin.get(it.classe + '|' + it.linha) : null)}</b><br><span class="muted">das vendas da linha na classe</span></div><div><small>Na classe ${esc(curto(it.classe))}</small><b class="num">${pct(CTX.cls.get(it.classe) ? CTX.item.get(i) / CTX.cls.get(it.classe) : null)}</b><br><span class="muted">das vendas da classe</span></div><div><small>No total ${esc(NOME[S.uni])}</small><b class="num">${pct(CTX.total ? CTX.item.get(i) / CTX.total : null)}</b><br><span class="muted">das vendas de ${esc(periodo())}</span></div></div>` : ''}
+        <div><small>Markup 2026</small><b class="num">${mkf(A.mk)}</b></div><div><small>Markup 2025</small><b class="num">${mkf(B.mk)}</b></div><div><small>Mk 2025 − Mk 2026</small><b class="num">${ppf(dpp(B.mk, A.mk))}</b></div></div>
+      ${CTX.item.has(i) ? `<div class="num4"><div><small>Na linha ${esc(it.linha)}</small><b class="num">${pct(CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) ? CTX.item.get(i) / CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) : null)}</b><br><span class="muted">das vendas da linha ${modoF() ? 'deste fornecedor' : 'na classe'}</span></div><div><small>${modoF() ? 'No fornecedor ' + esc(it.fornecedor) : 'Na classe ' + esc(curto(it.classe))}</small><b class="num">${pct(CTX.cls.get(chaveG(it)) ? CTX.item.get(i) / CTX.cls.get(chaveG(it)) : null)}</b><br><span class="muted">das vendas ${modoF() ? 'do fornecedor' : 'da classe'}</span></div><div><small>No total ${esc(totNome())}</small><b class="num">${pct(CTX.total ? CTX.item.get(i) / CTX.total : null)}</b><br><span class="muted">das vendas de ${esc(periodo())}</span></div></div>` : ''}
       <div class="leg"><span><i style="background:var(--c25)"></i>2025</span><span><i style="background:var(--accent)"></i>2026</span><span>vendas mês a mês</span></div>${meses(acc)}`;
     $('#modal').classList.add('on'); $('#veil').classList.add('on');
   }
@@ -159,10 +175,10 @@
     const c = t.closest('[data-i]'); if (c) return abrir(+c.dataset.i, c.dataset.nav);
     if (t.closest('[data-fechar]') || t.id === 'veil') return fechar();
     const n = t.closest('[data-nav]'); if (n && n.tagName === 'BUTTON') return vai(+n.dataset.nav);
-    const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.abertas = new Set(); S.todasLinhas = false; return render(); }
+    const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.cf = ''; S.lin = ''; S.abertas = new Set(); S.todasLinhas = false; return render(); }
     const k = t.closest('[data-cls]'); if (k) { S.cls = k.dataset.cls || null; S.todasLinhas = false; render(); return window.scrollTo(0, 0); }
     const l = t.closest('[data-linha]'); if (l) { const key = l.dataset.linha; S.abertas.has(key) ? S.abertas.delete(key) : S.abertas.add(key); const y = window.scrollY; render(); return window.scrollTo(0, y); }
-    if (t.closest('[data-limpar]')) { S.forn = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
+    if (t.closest('[data-limpar]')) { S.forn = ''; S.cf = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
     if (t.closest('[data-todas]')) { S.todasLinhas = !S.todasLinhas; return render(); }
   });
   document.addEventListener('change', e => { const f = e.target.dataset && e.target.dataset.f; if (!f) return; S[f] = e.target.value; render(); });

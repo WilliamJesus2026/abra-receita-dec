@@ -98,6 +98,8 @@ LOCK_HTML = """
   }
   function carregar(src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
   async function iniciar(dec) {
+    if (window.__rdecIniciado) return;   // nunca iniciar o app duas vezes (restauração de sessão + senha digitada)
+    window.__rdecIniciado = true;
     window.DEC = dec;
     await carregar('logica.js'); await carregar('app.js');
     var l = document.getElementById('lock'); if (l) l.remove();

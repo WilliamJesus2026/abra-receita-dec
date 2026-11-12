@@ -3,6 +3,8 @@
 Web app estático que substitui a leitura manual do Comparativo Anual para os grupos **INF DEC** e **ADT DEC**.
 
 ## O que é
+Três abas no topo: **INF DEC**, **ADT DEC** e **Fornecedores** (mesma tela, mas a lista da esquerda é de fornecedores, somando INF + ADT; dentro de cada fornecedor aparecem as linhas por classe, com os 5 mais vendidos em foto). O **Markup** aparece em percentual, como na coluna Mk da dinâmica (ex.: 137,89%), com o de 2025 e a diferença **Mk 2025 − Mk 2026** em pontos percentuais.
+
 App simples para **mostrar os produtos** a quem vai comprar: escolhe **INF DEC** ou **ADT DEC**, uma **classe**, e vê cada **linha** com os 5 produtos mais vendidos em foto (ver todos com um clique). Cada produto mostra quanto vende, markup, fornecedor e posição de venda. **Peso de cada nível no de cima:** a classe mostra quanto é do total do INF/ADT, a linha quanto é da classe e o produto quanto é da linha (com barrinha; no detalhe aparecem os três); o detalhe traz 2026 × 2025 e as vendas mês a mês, com ‹ › para passar de produto em produto. Um seletor de mês (ano todo ou um mês), uma busca (nome, código, fornecedor ou linha) e uma linha de filtros: **Fornecedor, Linha, Posição (imediata, encomenda, loja, suspensa, fora de linha), Markup (negativo, abaixo de 1, 1 a 2, acima de 2) e Ordenar por** (mais vendidos, maior/menor markup, mais cresceram/caíram). Os filtros mexem em tudo ao mesmo tempo: abas, classes, linhas e cartões. Modo claro/escuro e o símbolo da Abra sempre visível.
 
 ## Regras (conferidas contra as dinâmicas da planilha)
