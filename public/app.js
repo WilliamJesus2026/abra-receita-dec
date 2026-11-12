@@ -22,7 +22,7 @@
   const curto = c => c.replace(/^(INF|ADT) DEC /, '');
   const LIM_LINHAS = 10, TOP = 5;
 
-  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false };
+  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', lin: '', pos: '', mk: '', ord: 'rec' };
   try { let t = localStorage.getItem('rdec-tema'); if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark'; if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
   // ---------- dados do universo no período escolhido ----------
@@ -35,6 +35,28 @@
     const m = new Map();
     for (const r of rows) { const k = chave(r.it); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
     return [...m].map(([k, rs]) => Object.assign({ k, rows: rs.filter(r => r.a.rec > 0).sort((x, y) => y.a.rec - x.a.rec) }, somar(rs))).filter(g => g.rows.length).sort((x, y) => y.a.rec - x.a.rec);
+  }
+
+  // ---------- filtros ----------
+  const POS = { '': 'Posição: todas', venda: 'À venda (imediata, encomenda, prazo, loja)', imediata: 'Entrega imediata', encomenda: 'Encomenda / prazo', loja: 'Estoque loja', suspensa: 'Venda suspensa', fl: 'Fora de linha' };
+  const MK = { '': 'Markup: todos', neg: 'Negativo (abaixo do custo)', baixo: 'Abaixo de 1', medio: 'De 1 a 2', alto: 'Acima de 2' };
+  const ORD = { rec: 'Mais vendidos', mk: 'Maior markup', mkmenor: 'Menor markup', cresc: 'Mais cresceram (R$)', queda: 'Mais caíram (R$)' };
+  const passaPos = (it, p) => p === 'venda' ? (['Imediata', 'Encomenda', 'Prazo', 'Estoque loja'].includes(it.posTipo) && !it.fl) : p === 'imediata' ? it.posTipo === 'Imediata' : p === 'encomenda' ? (it.posTipo === 'Encomenda' || it.posTipo === 'Prazo') : p === 'loja' ? it.posTipo === 'Estoque loja' : p === 'suspensa' ? it.posTipo === 'Suspensa/Bloqueada' : p === 'fl' ? it.fl : true;
+  const passaMk = (mk, k) => !k || (mk != null && (k === 'neg' ? mk < 0 : k === 'baixo' ? mk >= 0 && mk < 1 : k === 'medio' ? mk >= 1 && mk <= 2 : mk > 2));
+  const passaX = (r, sem) => (sem === 'forn' || !S.forn || r.it.fornecedor === S.forn) && (sem === 'lin' || !S.lin || r.it.linha === S.lin) && passaPos(r.it, S.pos) && passaMk(r.a.mk, S.mk);
+  const passa = r => passaX(r);
+  const nAtivos = () => [S.forn, S.lin, S.pos, S.mk].filter(Boolean).length + (S.ord !== 'rec' ? 1 : 0);
+  const chaveOrd = r => S.ord === 'mk' ? (r.a.mk == null ? -1e9 : r.a.mk) : S.ord === 'mkmenor' ? (r.a.mk == null ? -1e9 : -r.a.mk) : S.ord === 'cresc' ? r.a.rec - r.b.rec : S.ord === 'queda' ? r.b.rec - r.a.rec : r.a.rec;
+  const ordenar = rows => rows.slice().sort((x, y) => chaveOrd(y) - chaveOrd(x));
+  function filtrosHtml(todos, rowsClasse) {
+    const fm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'forn')).forEach(r => fm.set(r.it.fornecedor, (fm.get(r.it.fornecedor) || 0) + r.a.rec));
+    const forns = [...fm].sort((x, y) => y[1] - x[1]);
+    const lm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'lin')).forEach(r => lm.set(r.it.linha, (lm.get(r.it.linha) || 0) + r.a.rec));
+    const lins = [...lm].sort((x, y) => y[1] - x[1]);
+    const sel = (id, atual, ops, vazio) => `<select data-f="${id}" class="${atual ? 'ativo' : ''}" aria-label="${esc(vazio)}"><option value="">${esc(vazio)}</option>${ops.map(([v, n]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+    return `<div class="filtros">${sel('forn', S.forn, forns.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Fornecedor: todos')}${sel('lin', S.lin, lins.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Linha: todas')}${sel('pos', S.pos, Object.entries(POS).filter(x => x[0]).map(x => x), 'Posição: todas')}${sel('mk', S.mk, Object.entries(MK).filter(x => x[0]), 'Markup: todos')}
+      <select data-f="ord" class="${S.ord !== 'rec' ? 'ativo' : ''}" aria-label="Ordenar">${Object.entries(ORD).map(([v, n]) => `<option value="${v}" ${S.ord === v ? 'selected' : ''}>Ordenar: ${esc(n)}</option>`).join('')}</select>
+      ${nAtivos() ? `<button class="btn" data-limpar>Limpar filtros (${nAtivos()})</button>` : ''}</div>`;
   }
 
   // ---------- peças de tela ----------
@@ -55,7 +77,7 @@
     const it = r.it;
     return `<div class="card" data-i="${it.i}" data-nav="${nav}"><div class="ft">${foto(it)}${n ? `<span class="rk">${n}</span>` : ''}</div>
       <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div>${posicao(it)}</div>
-      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b></div></div></div></div>`;
+      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'novo vs 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b></div></div></div></div>`;
   }
 
   // ---------- tela ----------
@@ -63,36 +85,38 @@
   function render() {
     document.body.dataset.uni = S.uni;
     $('#uni').innerHTML = ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g)).map(g => {
-      const t = somar(itens(g, S.mes)); return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${brlc(t.a.rec)} · Mk ${mkf(t.a.mk)}</small></span></button>`;
+      const t = somar(itens(g, S.mes).filter(passa)); return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${brlc(t.a.rec)} · Mk ${mkf(t.a.mk)}</small></span></button>`;
     }).join('');
-    const rows = itens(S.uni, S.mes); NAV = new Map();
+    const todos = itens(S.uni, S.mes), rows = todos.filter(passa); NAV = new Map();
     const q = norm(S.q.trim());
-    if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q);
+    if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q, filtrosHtml(todos, todos));
     const classes = agrupar(rows, it => it.classe), all = somar(rows);
     if (S.cls && !classes.find(c => c.k === S.cls)) S.cls = null;
+    const doClasse = S.cls ? todos.filter(r => r.it.classe === S.cls) : todos;
+    if (S.lin && !doClasse.some(r => r.it.linha === S.lin && r.a.rec > 0)) { S.lin = ''; return render(); }
     const sel = S.cls ? classes.find(c => c.k === S.cls) : { k: null, rows: rows.filter(r => r.a.rec > 0), a: all.a, b: all.b };
     const linhas = agrupar(sel.rows, it => it.linha), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
     const lista = `<aside class="classes">
       <button class="classe ${!S.cls ? 'on' : ''}" data-cls=""><b>Todas as classes</b><small>${brlc(all.a.rec)} · Mk ${mkf(all.a.mk)}</small></button>
       ${classes.map(c => `<button class="classe ${S.cls === c.k ? 'on' : ''}" data-cls="${esc(c.k)}"><b>${esc(curto(c.k))}</b><small>${brlc(c.a.rec)} · Mk ${mkf(c.a.mk)} · ${c.rows.length} itens</small></button>`).join('')}</aside>`;
     const cab = `<div class="cab"><h1>${esc(S.cls ? curto(S.cls) : 'Todas as classes')} <span class="muted" style="font-size:16px;font-weight:500">· ${esc(NOME[S.uni])}</span></h1>
-      <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b></span><span>${linhas.length} linhas · ${sel.rows.length} produtos</span></div></div>`;
+      <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b></span><span>${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ${sel.rows.length} ${sel.rows.length === 1 ? 'produto' : 'produtos'}</span></div></div>`;
     const secoes = vis.map(l => {
-      const aberta = S.abertas.has((S.cls || '') + '|' + l.k), mostra = aberta ? l.rows : l.rows.slice(0, TOP), key = 'l' + NAV.size;
+      const aberta = S.abertas.has((S.cls || '') + '|' + l.k), ord = ordenar(l.rows), mostra = aberta ? ord : ord.slice(0, TOP), key = 'l' + NAV.size;
       NAV.set(key, mostra.map(r => r.it.i));
       const fs = [...l.rows.reduce((m, r) => m.set(r.it.fornecedor, (m.get(r.it.fornecedor) || 0) + r.a.rec), new Map())].sort((x, y) => y[1] - x[1]).slice(0, 2).map(x => x[0]).join(', ');
       return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkf(l.a.mk)}</b> · ${esc(fs)}</span></div>
         <div class="cards">${mostra.map((r, n) => card(r, n + 1, key)).join('')}</div>
         ${l.rows.length > TOP ? `<button class="btn mais" data-linha="${esc((S.cls || '') + '|' + l.k)}">${aberta ? 'Mostrar só os 5 mais vendidos' : 'Ver todos os ' + l.rows.length + ' produtos desta linha'}</button>` : ''}</section>`;
     }).join('');
-    $('#view').innerHTML = `<div class="grade">${lista}<div>${cab}${secoes || '<div class="vazio">Nenhum produto com venda neste período.</div>'}
+    $('#view').innerHTML = `${filtrosHtml(todos, doClasse)}<div class="grade">${lista}<div>${cab}${secoes || '<div class="vazio">Nenhum produto com venda neste período.</div>'}
       ${linhas.length > LIM_LINHAS ? `<button class="btn" data-todas="1">${S.todasLinhas ? 'Mostrar só as ' + LIM_LINHAS + ' maiores linhas' : 'Ver as outras ' + (linhas.length - LIM_LINHAS) + ' linhas'}</button>` : ''}
-      <div class="nota">Mais vendidos pela receita de ${esc(periodo())}. Markup = (receita − custo) ÷ custo. Dados até ${m.dadosAte.split('-').reverse().join('/')}${S.mes === 11 || !S.mes ? ' (novembro até o dia ' + m.diaCorte + ', nos dois anos)' : ''}.</div></div></div>`;
+      <div class="nota">Ordenado por: ${esc(ORD[S.ord].toLowerCase())} (${esc(periodo())}). Markup = (receita − custo) ÷ custo. Dados até ${m.dadosAte.split('-').reverse().join('/')}${S.mes === 11 || !S.mes ? ' (novembro até o dia ' + m.diaCorte + ', nos dois anos)' : ''}.</div></div></div>`;
   }
-  function renderBusca(rows, q) {
-    const res = rows.filter(r => norm(r.it.nome).includes(q) || r.it.cod.includes(q) || norm(r.it.fornecedor).includes(q) || norm(r.it.linha).includes(q)).sort((x, y) => y.a.rec - x.a.rec);
+  function renderBusca(rows, q, filtros) {
+    const res = ordenar(rows.filter(r => norm(r.it.nome).includes(q) || r.it.cod.includes(q) || norm(r.it.fornecedor).includes(q) || norm(r.it.linha).includes(q)));
     NAV.set('busca', res.slice(0, 60).map(r => r.it.i));
-    $('#view').innerHTML = `<div class="cab"><h1>Busca: “${esc(S.q)}”</h1><div class="res"><span>${res.length} produtos em ${esc(NOME[S.uni])} · ${esc(periodo())}</span></div></div>
+    $('#view').innerHTML = `${filtros || ''}<div class="cab"><h1>Busca: “${esc(S.q)}”</h1><div class="res"><span>${res.length} produtos em ${esc(NOME[S.uni])} · ${esc(periodo())}</span></div></div>
       ${res.length ? `<div class="cards">${res.slice(0, 60).map((r, n) => card(r, 0, 'busca')).join('')}</div>` : '<div class="vazio">Nenhum produto encontrado.</div>'}`;
   }
   const m = D.meta;
@@ -132,8 +156,10 @@
     const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.abertas = new Set(); S.todasLinhas = false; return render(); }
     const k = t.closest('[data-cls]'); if (k) { S.cls = k.dataset.cls || null; S.todasLinhas = false; render(); return window.scrollTo(0, 0); }
     const l = t.closest('[data-linha]'); if (l) { const key = l.dataset.linha; S.abertas.has(key) ? S.abertas.delete(key) : S.abertas.add(key); const y = window.scrollY; render(); return window.scrollTo(0, y); }
+    if (t.closest('[data-limpar]')) { S.forn = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
     if (t.closest('[data-todas]')) { S.todasLinhas = !S.todasLinhas; return render(); }
   });
+  document.addEventListener('change', e => { const f = e.target.dataset && e.target.dataset.f; if (!f) return; S[f] = e.target.value; render(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); if ($('#modal').classList.contains('on')) { if (e.key === 'ArrowRight') vai(1); if (e.key === 'ArrowLeft') vai(-1); } });
   let tq; $('#busca').addEventListener('input', e => { clearTimeout(tq); tq = setTimeout(() => { S.q = e.target.value; render(); }, 250); });
   $('#mes').innerHTML = '<option value="0">Ano todo</option>' + mesesComDado.map(x => `<option value="${x}">${MESES_LONGO[x - 1]}</option>`).join('');

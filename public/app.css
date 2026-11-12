@@ -39,6 +39,11 @@ input[type=search]{width:230px}
 main{max-width:1500px;margin:0 auto;padding:18px 20px 70px}
 .grade{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
 
+/* filtros */
+.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center}
+.filtros select{max-width:260px;cursor:pointer}
+.filtros select.ativo{border-color:var(--accent);color:var(--accent);font-weight:600}
+
 /* lista de classes */
 .classes{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow:auto;display:flex;flex-direction:column;gap:6px}
 .classe{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:9px 12px;cursor:pointer;text-align:left}
