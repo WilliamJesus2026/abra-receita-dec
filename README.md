@@ -9,7 +9,7 @@ Web app estático que substitui a leitura manual do Comparativo Anual para os gr
 - Filtros ativos aparecem como etiquetas removíveis.
 
 ## Abas
-- **Compradora · Classe › Linha › Item** – visão guiada para quem vai comprar: o que vende, markup, fornecedores e pontos de atenção; clique na classe, depois na linha, e chega aos itens (foto, fornecedor, posição, ABC, Mk vs. seleção, mês a mês).
+- **Explorar · Classe › Linha › Item** – 3 colunas na mesma tela (Classes | Linhas | Itens). Um clique na classe ou na linha já mostra os itens com foto, fornecedor, posição, ABC, markup e mês a mês. Filtros rápidos de atenção e de fornecedor, busca, visão em fotos ou tabela. Clique no item abre o detalhe, com ‹ › (ou setas do teclado) para passar de item em item. Cliques em gráficos, fornecedores, matriz e árvore anual levam direto para cá.
 - **Fornecedores** – ranking (barras com 4 visões) e tabela; detalhe por classe/linha; nomes unificados.
 - **Qualidade dos dados** – conferência com a planilha (receita, margem e CMV por grupo/ano) e verificações clicáveis (sem foto, sem posição, suspensos com venda, linha genérica, Mk negativo/alto, receita negativa, mais de um fornecedor, nomes de fornecedor parecidos).
 - **Resumo** – KPIs (receita, margem, markup, itens com venda), mês a mês 2026 × 2025 (5 visões), classes (4 visões), INF × ADT.

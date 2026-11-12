@@ -23,7 +23,7 @@
   // ---------------- estado ----------------
   const S = {
     tab: 'compra', modo: 'ano', canais: null, grupos: null, classes: null, linhas: null, posicoes: null, fornecedores: null, foraLinha: 'todos', q: '', meses: null,
-    bCls: null, bLin: null, bSort: 'rec', bTop: 40, fSort: 'rec', fSel: null, fTop: 40, fViz: 'rec', fN: 15,
+    bCls: null, bLin: null, bSort: 'rec', bTop: 40, bAtt: null, bForn: null, bView: 'cards', bQ: '', fSort: 'rec', fSel: null, fTop: 40, fViz: 'rec', fN: 15,
     rVisaoMes: 'rec', rVisaoCls: 'rec', rTop: 12,
     aOrdem: 'cl', aSort: 'rec26', aAbertos: new Set(), aCols: 'full',
     mDim: 'classe', mMet: 'rec26', mSel: null, mTop: 40,
@@ -130,21 +130,28 @@
     const q = LS.q.toLowerCase();
     let rows = LS.rows.filter(r => !q || r.it.nome.toLowerCase().includes(q) || r.it.cod.includes(q));
     const key = { rec26: r => r.a.rec, rec25: r => r.b.rec, mk26: r => r.a.mk == null ? -1e9 : r.a.mk, var: r => L.vari(r.a.rec, r.b.rec) == null ? -1e9 : L.vari(r.a.rec, r.b.rec) }[LS.sort];
-    rows = rows.slice().sort((x, y) => key(y) - key(x));
+    rows = rows.slice().sort((x, y) => key(y) - key(x)); window.__nav = rows.map(r => r.it.i);
     const ta = rows.reduce((s, r) => s + r.a.rec, 0), tb = rows.reduce((s, r) => s + r.b.rec, 0), tm = rows.reduce((s, r) => s + r.a.mg, 0), tc = rows.reduce((s, r) => s + r.a.cmv, 0);
     $('#db').innerHTML = `<div class="kv"><div><small>Itens</small><b>${nf0.format(rows.length)}</b></div><div><small>Receita 2026</small><b>${brl(ta)}</b></div><div><small>Receita 2025</small><b>${brl(tb)}</b></div><div><small>Var.</small><b class="${cv(L.vari(ta, tb))}">${varf(L.vari(ta, tb))}</b></div><div><small>Markup 2026</small><b>${mkf(L.mk(ta, tc))}</b></div></div>
       <div class="tools"><input type="search" id="lq" placeholder="buscar no resultado…" value="${esc(LS.q)}">${segHtml('lsort', LS.sort, [['rec26', 'Receita 26'], ['rec25', 'Receita 25'], ['var', 'Var. %'], ['mk26', 'Markup']])}</div>
       <div class="tw" style="max-height:none"><table><thead><tr><th class="l">Item</th><th>Posição</th><th>Rec 26</th><th>Rec 25</th><th>Var.</th><th>Mk 26</th></tr></thead><tbody>${rows.slice(0, 400).map(r => `<tr class="cl" data-a="item:${r.it.i}"><td class="l">${nomeItem(r.it)}</td><td class="l">${posBadge(r.it)}</td><td class="num">${brl(r.a.rec)}</td><td class="num">${brl(r.b.rec)}</td><td class="num ${cv(L.vari(r.a.rec, r.b.rec))}">${varf(L.vari(r.a.rec, r.b.rec))}</td><td class="num">${mkf(r.a.mk)}</td></tr>`).join('')}</tbody></table></div>${rows.length > 400 ? `<div class="nota">Mostrando 400 de ${rows.length}; refine pela busca.</div>` : ''}`;
     const el = $('#lq'); if (el) el.addEventListener('input', e => { LS.q = e.target.value; const pos = e.target.selectionStart; renderLista(); const n = $('#lq'); n.focus(); n.setSelectionRange(pos, pos); });
   }
+  // leva direto para a aba Explorar já com a seleção feita (classe / linha / fornecedor)
+  function irItens(o) {
+    S.bCls = o.cls || null; S.bLin = o.lin || null; S.bAtt = null; S.bForn = null; S.bQ = ''; S.bTop = 40;
+    if (o.forn) S.fornecedores = new Set([o.forn]);
+    setTab('compra');
+  }
   const fechar = () => { $('#drawer').classList.remove('open'); $('#veil').classList.remove('on'); $('#modal').classList.remove('on'); };
   function abrirItem(i) {
+    window.__cur = i; const nav = window.__nav || [], npos = nav.indexOf(i);
     const it = L.itens[i], f0 = filtro(); const f = { modo: f0.modo, canais: f0.canais, meses: f0.meses };
     const acc = L.consulta(f, x => x.i === i ? 'k' : null).get('k') || L.novoAcc();
     const a = tot(acc, 2026), b = tot(acc, 2025), ms = mesesComDado.filter(m => !S.meses || S.meses.has(m));
     const cm = L.consulta(Object.assign({}, f, { classes: new Set([it.classe]) }), x => x.i), cl = [...cm].map(([k, ac]) => ({ k, A: tot(ac, 2026) })).sort((x, y) => y.A.rec - x.A.rec), pos0 = cl.findIndex(x => x.k === i), ct = cl.reduce((s, x) => s + x.A.rec, 0), cMk = tot(L.somarAcc([...cm.values()]), 2026).mk;
     const rk = pos0 < 0 ? '–' : `#${pos0 + 1} de ${cl.length} · ${pct(ct ? a.rec / ct : null)} da classe · Mk classe ${mkf(cMk)}`;
-    $('#modal').innerHTML = `<button class="x" style="float:right" data-a="fechar">×</button><img class="lgm" src="logo-abra.svg" alt="Abra" style="float:left;margin:0 12px 0 0">
+    $('#modal').innerHTML = `<button class="x" style="float:right" data-a="fechar">×</button>${npos >= 0 ? `<div class="inav"><button class="btn" data-a="inav:-1" ${npos === 0 ? 'disabled' : ''}>‹ anterior</button><span class="muted">${npos + 1} de ${nav.length}</span><button class="btn" data-a="inav:1" ${npos === nav.length - 1 ? 'disabled' : ''}>próximo ›</button></div>` : ''}<img class="lgm" src="logo-abra.svg" alt="Abra" style="float:left;margin:0 12px 0 0">
       <div style="display:flex;gap:16px;align-items:center"><img class="thumb lg ${it.foto ? '' : 'semfoto'}" style="width:120px;height:120px" src="${esc(it.foto || 'logo-abra.svg')}" referrerpolicy="no-referrer" alt="">
       <div><h3>${esc(it.nome)}</h3><div class="muted">${esc(it.cod)} · ${esc(it.classe)} · ${esc(it.linha)}</div><div style="margin-top:6px">${posBadge(it)} <span class="muted" style="font-size:12px">${esc(it.sit)}</span></div>${it.link ? `<div style="margin-top:6px"><a href="https://${esc(String(it.link).replace(/^https?:\/\//, ''))}" target="_blank" rel="noopener">ver no site ↗</a></div>` : ''}</div></div>
       <div class="kv"><div><small>Receita 2026</small><b>${brl(a.rec)}</b></div><div><small>Receita 2025</small><b>${brl(b.rec)}</b></div><div><small>Var.</small><b class="${cv(L.vari(a.rec, b.rec))}">${varf(L.vari(a.rec, b.rec))}</b></div><div><small>Margem 2026</small><b>${brl(a.mg)} · ${pct(a.mgp)}</b></div><div><small>Markup 26 / 25</small><b>${mkf(a.mk)} / ${mkf(b.mk)}</b></div></div>
@@ -186,7 +193,7 @@
     let top = cls.filter(c => w === 'var' ? c.B.rec > 0 && c.A.rec > 0 : w === 'mk' ? c.A.mk != null : true).sort((x, y) => w === 'rec' || w === 'part' ? y.A.rec - x.A.rec : (vf(y) - vf(x)));
     if (w === 'var' || w === 'mk') top = cls.filter(c => c.A.rec > 0 && c.B.rec > 0 && vf(c) != null).sort((x, y) => (y.A.rec) - (x.A.rec)).slice(0, S.rTop).sort((x, y) => vf(y) - vf(x)); else top = top.slice(0, S.rTop);
     const ff = w === 'rec' ? brl : w === 'var' ? varf : w === 'mk' ? mkf : pct;
-    mkChart('ch-cls', { type: 'bar', data: { labels: top.map(c => c.k), datasets: [{ data: top.map(vf), backgroundColor: top.map(c => cor('--c26')) }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length) { S.xCls = top[els[0].index].k; S.xVis = 'recurso'; setTab('cxl'); } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ff(c.parsed.x) } } }, scales: { x: { ticks: { callback: x => w === 'rec' ? brlc(x) : w === 'mk' ? mkf(x) : pct(x, 0) } } } } });
+    mkChart('ch-cls', { type: 'bar', data: { labels: top.map(c => c.k), datasets: [{ data: top.map(vf), backgroundColor: top.map(c => cor('--c26')) }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length) irItens({ cls: top[els[0].index].k }); }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ff(c.parsed.x) } } }, scales: { x: { ticks: { callback: x => w === 'rec' ? brlc(x) : w === 'mk' ? mkf(x) : pct(x, 0) } } } } });
   }
 
   // ---------------- aba: Anual (árvore) ----------------
@@ -268,6 +275,7 @@
   function vItens() {
     const rows = itensRows(), pg = 100, np = Math.max(1, Math.ceil(rows.length / pg)); if (S.iPag >= np) S.iPag = np - 1;
     const sl = rows.slice(S.iPag * pg, (S.iPag + 1) * pg);
+    window.__nav = sl.map(r => r.it.i);
     const fmts = { rec26: brl, rec25: brl, var: varf, mg26: brl, mgp: pct, mk26: mkf, mk25: mkf, dmk: dmkf, share: pct };
     return `<div class="card"><div class="hd"><h3>Itens · receita, margem e markup</h3><span class="muted">${nf0.format(rows.length)} itens</span><div class="sp"></div>
       <label class="muted" style="font-size:12px">Receita 26 ≥ <input type="number" data-num="iMin" value="${S.iMin || ''}" placeholder="0" style="width:90px"></label>
@@ -398,56 +406,79 @@
   const mkBadge = (mk, ref) => mk == null ? '–' : `<span class="${ref != null && mk >= ref + .1 ? 'pos' : ref != null && mk <= ref - .1 ? 'neg' : ''}" style="font-weight:600">${mkf(mk)}</span>`;
   const SORTS = { rec: ['Receita', (A, B) => A.rec], mk: ['Markup', (A, B) => A.mk == null ? -1e9 : A.mk], var: ['Var. %', (A, B) => L.vari(A.rec, B.rec) == null ? -1e9 : L.vari(A.rec, B.rec)], mg: ['Margem R$', (A, B) => A.mg] };
 
-  // ---------------- aba: Compradora (Classe › Linha › Item) ----------------
-  function vCompra() {
-    const f = filtro(), base = um('x', f), A = tot(base, 2026), B = tot(base, 2025), sk = SORTS[S.bSort][1];
+  // ---------------- aba: Explorar (Classe › Linha › Item, tudo na mesma tela) ----------------
+  function compraDados() {
+    const f = filtro(), sk = SORTS[S.bSort][1];
     const itAcc = L.consulta(f, it => it.i);
     const todos = [...itAcc].map(([i, acc]) => ({ it: L.itens[i], acc, a: tot(acc, 2026), b: tot(acc, 2025) }));
-    const clsM = new Map(); for (const r of todos) { const c = clsM.get(r.it.classe) || { k: r.it.classe, acc: L.novoAcc(), it: 0, lin: new Set(), forn: new Set() }; clsM.set(r.it.classe, c); c.acc = L.somarAcc([c.acc, r.acc]); if (r.a.rec > 0) { c.it++; c.lin.add(r.it.linha); c.forn.add(r.it.fornecedor); } }
-    const classes = [...clsM.values()].map(c => Object.assign(c, { A: tot(c.acc, 2026), B: tot(c.acc, 2025) })).filter(c => c.A.rec > 0 || c.B.rec > 0).sort((x, y) => sk(y.A, y.B) - sk(x.A, x.B));
-    if (S.bCls && !clsM.has(S.bCls)) S.bCls = null;
+    const base = tot(L.somarAcc(todos.map(r => r.acc)), 2026);
+    const agr = (rows, chave) => {
+      const m = new Map();
+      for (const r of rows) { const k = chave(r.it); const o = m.get(k) || { k, acc: L.novoAcc(), it: 0, lin: new Set(), forn: new Set() }; m.set(k, o); o.acc = L.somarAcc([o.acc, r.acc]); if (r.a.rec > 0) { o.it++; o.lin.add(r.it.linha); o.forn.add(r.it.fornecedor); } }
+      return [...m.values()].map(o => Object.assign(o, { A: tot(o.acc, 2026), B: tot(o.acc, 2025) })).filter(o => o.A.rec > 0 || o.B.rec > 0).sort((x, y) => sk(y.A, y.B) - sk(x.A, x.B));
+    };
+    const classes = agr(todos, it => it.classe);
+    if (S.bCls && !classes.find(c => c.k === S.bCls)) S.bCls = null;
     const selC = todos.filter(r => !S.bCls || r.it.classe === S.bCls);
-    const linM = new Map();
-    for (const r of selC) { const l = linM.get(r.it.linha) || { k: r.it.linha, acc: L.novoAcc(), it: 0, forn: new Map() }; linM.set(r.it.linha, l); l.acc = L.somarAcc([l.acc, r.acc]); if (r.a.rec > 0) { l.it++; l.forn.set(r.it.fornecedor, (l.forn.get(r.it.fornecedor) || 0) + r.a.rec); } }
-    const linhas = [...linM.values()].map(l => Object.assign(l, { A: tot(l.acc, 2026), B: tot(l.acc, 2025) })).filter(l => l.A.rec > 0 || l.B.rec > 0).sort((x, y) => sk(y.A, y.B) - sk(x.A, x.B));
-    if (S.bLin && !linM.has(S.bLin)) S.bLin = null;
-    const baseLin = S.bCls ? selC.reduce((s, r) => s + r.a.rec, 0) : A.rec, mkLin = S.bCls ? tot(L.somarAcc(selC.map(r => r.acc)), 2026).mk : A.mk;
+    const baseC = tot(L.somarAcc(selC.map(r => r.acc)), 2026);
+    const linhas = agr(selC, it => it.linha);
+    if (S.bLin && !linhas.find(l => l.k === S.bLin)) S.bLin = null;
     const sel = selC.filter(r => !S.bLin || r.it.linha === S.bLin);
     const selAcc = L.somarAcc(sel.map(r => r.acc)), SA = tot(selAcc, 2026), SB = tot(selAcc, 2025);
-    const itens = sel.filter(r => r.a.rec > 0 || r.b.rec > 0).sort((x, y) => sk(y.a, y.b) - sk(x.a, x.b));
-    // ABC pela receita 2026 dentro da seleção
     const ord = sel.filter(r => r.a.rec > 0).sort((x, y) => y.a.rec - x.a.rec); let ac = 0; const abc = new Map();
     ord.forEach(r => { const ant = ac; ac += r.a.rec; abc.set(r.it.i, SA.rec ? (ant / SA.rec < .8 ? 'A' : ant / SA.rec < .95 ? 'B' : 'C') : 'C'); });
-    // fornecedores da seleção
     const fm = new Map(); sel.forEach(r => fm.set(r.it.fornecedor, (fm.get(r.it.fornecedor) || 0) + r.a.rec));
     const forns = [...fm].filter(x => x[1] > 0).sort((x, y) => y[1] - x[1]);
-    // pontos de atenção
     const att = { susp: [], mkbaixo: [], neg: [], queda: [] };
     ord.forEach(r => { if (abc.get(r.it.i) === 'A' && semVenda(r.it)) att.susp.push(r.it.i); if (abc.get(r.it.i) === 'A' && r.a.mk != null && SA.mk != null && r.a.mk < SA.mk - .25) att.mkbaixo.push(r.it.i); if (r.a.mk != null && r.a.mk < 0) att.neg.push(r.it.i); if (r.b.rec >= 1500 && L.vari(r.a.rec, r.b.rec) < -.3) att.queda.push(r.it.i); });
-    window.__att = att;
-    const top1 = forns[0], conc = top1 && SA.rec ? top1[1] / SA.rec : 0;
-    const lt = (k, n, cls) => att[k].length ? `<div class="att ${cls}" data-a="att:${k}"><b>${att[k].length}</b> ${n}</div>` : '';
-    const attHtml = lt('susp', 'itens classe A (80% da receita) com venda suspensa, sem posição ou fora de linha', 'bad') + lt('mkbaixo', 'itens classe A com markup bem abaixo do markup da seleção', 'warn') + lt('neg', 'itens vendidos abaixo do custo (Mk negativo)', 'bad') + lt('queda', 'itens que caíram mais de 30% vs 2025 (base ≥ R$ 1.500)', 'warn')
-      + (conc > .5 && fm.size > 1 ? `<div class="att warn" data-a="forn:${esc(top1[0])}">Concentração: <b>${esc(top1[0])}</b> responde por ${pct(conc, 0)} da receita desta seleção</div>` : '');
-    const nLin = new Set(sel.filter(r => r.a.rec > 0).map(r => r.it.linha)).size;
-    const kp = (l, v, d) => `<div class="card kpi" data-a="bkpi"><div class="l">${l}</div><div class="v num">${v}</div><div class="d">${d || '&nbsp;'}</div></div>`;
-    const sortSeg = segHtml('bsort', S.bSort, Object.keys(SORTS).map(k => [k, SORTS[k][0]]));
+    return { f, sk, todos, base, baseC, classes, linhas, sel, SA, SB, abc, forns, att, ord };
+  }
+  const ATT_NOME = { susp: 'Classe A suspensos / fora de linha', mkbaixo: 'Classe A com markup baixo', neg: 'Vendidos abaixo do custo', queda: 'Queda > 30% vs 2025' };
+  function compraItens(cd) {
+    const sk = cd.sk, q = (S.bQ || '').trim().toLowerCase();
+    let itens = cd.sel.filter(r => r.a.rec > 0 || r.b.rec > 0);
+    if (S.bAtt) { const s = new Set(cd.att[S.bAtt]); itens = itens.filter(r => s.has(r.it.i)); }
+    if (S.bForn) itens = itens.filter(r => r.it.fornecedor === S.bForn);
+    if (q) itens = itens.filter(r => r.it.nome.toLowerCase().includes(q) || r.it.cod.includes(q));
+    itens.sort((x, y) => sk(y.a, y.b) - sk(x.a, x.b));
+    window.__nav = itens.map(r => r.it.i);
+    if (!itens.length) return '<div class="empty">Nenhum item com esses filtros.</div>';
+    const SA = cd.SA, lim = itens.slice(0, S.bTop);
+    const mais = itens.length > S.bTop ? `<div class="pager"><span class="muted">${S.bTop} de ${itens.length}</span><button class="btn" data-a="bmais">Mostrar mais 40</button></div>` : '';
+    if (S.bView === 'tab') {
+      return `<div class="tw" style="max-height:none;border:0"><table><thead><tr><th class="l">#  Item · fornecedor</th><th class="l">Posição</th><th>Rec 26</th><th>% sel.</th><th>ABC</th><th>Var.</th><th>Mk 26</th><th>Mk 25</th><th>Mg 26</th><th class="l">Mês a mês</th></tr></thead><tbody>
+      ${lim.map((r, n) => `<tr class="cl" data-a="item:${r.it.i}"><td class="l">${nomeItem(r.it, '').replace('<div class="nm">', `<div class="nm"><span class="muted" style="width:24px">${n + 1}</span>`)}</td><td class="l">${posBadge(r.it)}</td><td class="num">${brl(r.a.rec)}</td><td class="num">${pct(SA.rec ? r.a.rec / SA.rec : null)}</td><td class="num">${abcBadge(cd.abc.get(r.it.i))}</td><td class="num ${cv(L.vari(r.a.rec, r.b.rec))}">${varf(L.vari(r.a.rec, r.b.rec))}</td><td class="num">${mkBadge(r.a.mk, SA.mk)}</td><td class="num">${mkf(r.b.mk)}</td><td class="num">${brl(r.a.mg)}</td><td class="l">${spark(r.acc)}</td></tr>`).join('')}</tbody></table></div>${mais}`;
+    }
+    return `<div class="icards">${lim.map((r, n) => `<div class="icard" data-a="item:${r.it.i}">
+      <div class="ic-top">${thumb(r.it, 'xl')}<div class="ic-t"><b>${esc(r.it.nome)}</b><small>${esc(r.it.cod)} · ${esc(r.it.linha)}</small><small><i>${esc(r.it.fornecedor)}</i></small><div>${posBadge(r.it)} ${abcBadge(cd.abc.get(r.it.i))}</div></div><span class="ic-n">${n + 1}</span></div>
+      <div class="ic-m"><div><small>Vende 26</small><b>${brl(r.a.rec)}</b></div><div><small>Var.</small><b class="${cv(L.vari(r.a.rec, r.b.rec))}">${varf(L.vari(r.a.rec, r.b.rec))}</b></div><div><small>Markup</small><b>${mkBadge(r.a.mk, SA.mk)}</b></div><div class="ic-s">${spark(r.acc)}</div></div></div>`).join('')}</div>${mais}`;
+  }
+  const abcBadge = v => v ? `<span class="bdg ${v === 'A' ? 'ok' : v === 'B' ? 'warn' : 'gray'}" title="Curva ABC por receita 2026 dentro da seleção">${v}</span>` : '';
+  function vCompra() {
+    const cd = compraDados(); window.__cd = cd;
+    const { classes, linhas, SA, SB, forns, att, base, baseC } = cd;
+    const chip = (l, v, d) => `<div class="kchip"><small>${l}</small><b>${v}</b>${d ? `<span>${d}</span>` : ''}</div>`;
+    const top1 = forns[0];
+    const row = (k, nome, o, ref, tot0, on, act) => `<div class="selrow ${on ? 'on' : ''}" data-a="${act}:${esc(k)}"><div class="r1"><b>${esc(nome)}</b><span class="num">${brlc(o.A.rec)}</span></div><div class="bar"><i style="width:${tot0 ? Math.min(100, 100 * o.A.rec / tot0) : 0}%"></i></div><div class="r2 muted"><span>${pct(tot0 ? o.A.rec / tot0 : null)}</span><span class="${cv(L.vari(o.A.rec, o.B.rec))}">${varf(L.vari(o.A.rec, o.B.rec))}</span><span>Mk ${mkBadge(o.A.mk, ref)}</span><span>${o.it} itens</span></div></div>`;
+    const attChips = Object.keys(ATT_NOME).filter(k => att[k].length).map(k => `<span class="chip ${S.bAtt === k ? 'on' : ''}" data-a="batt:${k}" title="mostra só esses itens">${att[k].length} · ${ATT_NOME[k]}</span>`).join('');
+    const fChips = forns.slice(0, 10).map(([n, v]) => `<span class="chip ${S.bForn === n ? 'on' : ''}" data-a="bforn:${esc(n)}" title="${brl(v)}">${esc(n)} · ${pct(SA.rec ? v / SA.rec : null, 0)}</span>`).join('');
     const nomeSel = S.bCls ? (S.bLin ? S.bCls + ' › ' + S.bLin : S.bCls) : 'todas as classes';
-    return `<div class="card hero"><div class="hd"><h3>O que você vai comprar</h3><span class="muted">${esc(nomeSel)}</span><div class="sp"></div>${sortSeg}</div>
-      <div class="grid g4">${kp('Classes', nf0.format(classes.length), S.bCls ? 'selecionada: 1' : 'no filtro')}${kp('Linhas', nf0.format(linhas.filter(l => l.A.rec > 0).length), 'com venda em 2026')}${kp('Fornecedores', nf0.format(forns.length), top1 ? 'maior: ' + esc(top1[0]) : '')}${kp('Itens com venda', nf0.format(ord.length), 'em 2026')}
-      ${kp('Vende (2026)', brlc(SA.rec), varf(L.vari(SA.rec, SB.rec)) + ' vs 2025 (' + brlc(SB.rec) + ')')}${kp('Markup', mkf(SA.mk), '2025: ' + mkf(SB.mk) + ' · Mg ' + pct(SA.mgp))}${kp('Margem R$', brlc(SA.mg), '2025: ' + brlc(SB.mg))}${kp('Itens classe A', nf0.format([...abc.values()].filter(x => x === 'A').length), '80% da receita')}</div>
-      ${attHtml ? `<div class="attbox"><div class="muted" style="font-size:12px;margin-bottom:6px">PONTOS DE ATENÇÃO (clique para ver os itens)</div>${attHtml}</div>` : ''}</div>
-    <div class="grid g2 cols2" style="margin-top:16px">
-      <div class="card"><div class="hd"><h3>1 · Classes</h3><span class="muted">${classes.length}</span><div class="sp"></div>${S.bCls ? '<button class="btn" data-a="bcls:">todas</button>' : ''}</div><div class="lista-sel">
-        ${classes.map(c => `<div class="selrow ${S.bCls === c.k ? 'on' : ''}" data-a="bcls:${esc(c.k)}"><div class="r1"><b>${esc(c.k)}</b><span class="num">${brlc(c.A.rec)}</span></div><div class="bar"><i style="width:${A.rec ? Math.min(100, 100 * c.A.rec / A.rec) : 0}%"></i></div><div class="r2 muted"><span>${pct(A.rec ? c.A.rec / A.rec : null)} do total</span><span class="${cv(L.vari(c.A.rec, c.B.rec))}">${varf(L.vari(c.A.rec, c.B.rec))}</span><span>Mk ${mkBadge(c.A.mk, A.mk)}</span><span>${c.lin.size} linhas · ${c.it} itens · ${c.forn.size} forn.</span></div></div>`).join('') || '<div class="empty">Sem classes no filtro.</div>'}</div></div>
-      <div class="card"><div class="hd"><h3>2 · Linhas ${S.bCls ? 'de ' + esc(S.bCls) : ''}</h3><span class="muted">${linhas.length}</span><div class="sp"></div>${S.bLin ? '<button class="btn" data-a="blin:">todas</button>' : ''}</div><div class="lista-sel">
-        ${linhas.map(l => { const fs = [...l.forn].sort((x, y) => y[1] - x[1]).slice(0, 2).map(x => x[0]).join(', '); return `<div class="selrow ${S.bLin === l.k ? 'on' : ''}" data-a="blin:${esc(l.k)}"><div class="r1"><b>${esc(l.k)}</b><span class="num">${brlc(l.A.rec)}</span></div><div class="bar"><i style="width:${baseLin ? Math.min(100, 100 * l.A.rec / baseLin) : 0}%"></i></div><div class="r2 muted"><span>${pct(baseLin ? l.A.rec / baseLin : null)} ${S.bCls ? 'da classe' : 'do total'}</span><span class="${cv(L.vari(l.A.rec, l.B.rec))}">${varf(L.vari(l.A.rec, l.B.rec))}</span><span>Mk ${mkBadge(l.A.mk, mkLin)}</span><span>${l.it} itens</span></div><div class="r2 muted" style="margin-top:2px">${esc(fs)}</div></div>`; }).join('') || '<div class="empty">Sem linhas.</div>'}</div></div></div>
-    ${forns.length ? `<div class="card" style="margin-top:16px"><div class="hd"><h3>Fornecedores desta seleção</h3><span class="muted">clique para filtrar o app por fornecedor</span></div><div class="chips">${forns.slice(0, 14).map(([n, v]) => `<span class="chip" data-a="forn:${esc(n)}" title="${brl(v)}">${esc(n)} · ${pct(SA.rec ? v / SA.rec : null, 0)}</span>`).join('')}</div></div>` : ''}
-    <div class="card" style="margin-top:16px"><div class="hd"><h3>3 · Itens ${S.bLin ? 'da linha ' + esc(S.bLin) : S.bCls ? 'da classe' : ''}</h3><span class="muted">${itens.length} itens</span><div class="sp"></div><span class="muted" style="font-size:12px">barras = 2026 mês a mês · linha cinza = 2025</span></div>
-      <div class="tw"><table><thead><tr><th class="l">#  Item · fornecedor</th><th class="l">Posição</th><th>Rec 26</th><th>% na seleção</th><th>ABC</th><th>Var.</th><th>Mk 26</th><th>Mk 25</th><th>Mg 26</th><th class="l">Mês a mês</th></tr></thead><tbody>
-      ${itens.slice(0, S.bTop).map((r, n) => `<tr class="cl" data-a="item:${r.it.i}"><td class="l">${nomeItem(r.it, '').replace('<div class="nm">', `<div class="nm"><span class="muted" style="width:24px">${n + 1}</span>`)}</td><td class="l">${posBadge(r.it)}</td><td class="num">${brl(r.a.rec)}</td><td class="num">${pct(SA.rec ? r.a.rec / SA.rec : null)}</td><td class="num">${abc.has(r.it.i) ? `<span class="bdg ${abc.get(r.it.i) === 'A' ? 'ok' : abc.get(r.it.i) === 'B' ? 'warn' : 'gray'}">${abc.get(r.it.i)}</span>` : '–'}</td><td class="num ${cv(L.vari(r.a.rec, r.b.rec))}">${varf(L.vari(r.a.rec, r.b.rec))}</td><td class="num">${mkBadge(r.a.mk, SA.mk)}</td><td class="num">${mkf(r.b.mk)}</td><td class="num">${brl(r.a.mg)}</td><td class="l">${spark(r.acc)}</td></tr>`).join('') || '<tr><td colspan="10" class="empty">Sem itens.</td></tr>'}</tbody></table></div>
-      ${itens.length > S.bTop ? `<div class="pager"><span class="muted">${S.bTop} de ${itens.length}</span><button class="btn" data-a="bmais">Mostrar mais 40</button></div>` : ''}
-      <div class="nota">Mk verde/vermelho = 0,10 acima/abaixo do markup da seleção. ABC = receita acumulada 2026 (A até 80%, B até 95%). Clique numa classe ou linha para descer um nível; clique no item para o detalhe.</div></div>`;
+    const baseLin = S.bCls ? baseC.rec : base.rec, mkLin = S.bCls ? baseC.mk : base.mk;
+    return `<div class="xstrip">
+      ${chip('Vende 2026', brlc(SA.rec), varf(L.vari(SA.rec, SB.rec)) + ' vs 2025')}${chip('Markup', mkf(SA.mk), '2025: ' + mkf(SB.mk))}${chip('Margem', brlc(SA.mg), pct(SA.mgp))}${chip('Classes', nf0.format(classes.length))}${chip('Linhas', nf0.format(linhas.filter(l => l.A.rec > 0).length))}${chip('Fornecedores', nf0.format(forns.length), top1 ? 'maior: ' + esc(top1[0]) : '')}${chip('Itens com venda', nf0.format(cd.ord.length))}
+      <div class="sp"></div>${segHtml('bsort', S.bSort, Object.keys(SORTS).map(k => [k, SORTS[k][0]]))}</div>
+    <div class="x3">
+      <section class="pane"><header><h3>Classes</h3><span class="muted">${classes.length}</span></header><div class="pbody">
+        <div class="selrow todas ${!S.bCls ? 'on' : ''}" data-a="bcls:"><b>Todas as classes</b><span class="muted">${brlc(base.rec)}</span></div>
+        ${classes.map(c => row(c.k, c.k, c, base.mk, base.rec, S.bCls === c.k, 'bcls')).join('') || '<div class="empty">Sem classes.</div>'}</div></section>
+      <section class="pane"><header><h3>Linhas</h3><span class="muted">${S.bCls ? esc(S.bCls) : 'de todas as classes'}</span></header><div class="pbody">
+        <div class="selrow todas ${!S.bLin ? 'on' : ''}" data-a="blin:"><b>Todas as linhas</b><span class="muted">${brlc(baseLin)}</span></div>
+        ${linhas.map(l => row(l.k, l.k, l, mkLin, baseLin, S.bLin === l.k, 'blin')).join('') || '<div class="empty">Sem linhas.</div>'}</div></section>
+      <section class="pane wide"><header><h3>Itens</h3><span class="muted" id="pn-n"></span><span class="muted">${esc(nomeSel)}</span><div class="sp"></div>
+        <input type="search" id="bq" placeholder="buscar item…" value="${esc(S.bQ || '')}" style="width:150px">${segHtml('bview', S.bView, [['cards', 'Fotos'], ['tab', 'Tabela']])}</header>
+        ${(attChips || fChips) ? `<div class="pchips">${attChips ? '<span class="lb">atenção</span>' + attChips : ''}${fChips ? '<span class="lb">fornecedor</span>' + fChips : ''}${(S.bAtt || S.bForn) ? '<span class="chip" data-a="blimpa">limpar ×</span>' : ''}</div>` : ''}
+        <div class="pbody" id="pitens">${compraItens(cd)}</div></section>
+    </div>`;
   }
 
   // ---------------- aba: Fornecedores ----------------
@@ -484,7 +515,7 @@
     const ff = w === 'rec' ? brl : w === 'mk' ? mkf : w === 'var' ? varf : (v => pct(v));
     const cores = pts.map(p => p.k === S.fSel ? cor('--gold') : (w === 'var' || w === 'mk') && val(p) < (w === 'mk' ? 0 : 0) ? cor('--bad') : cor('--c26'));
     mkChart('ch-forn', { type: 'bar', data: { labels: pts.map(p => p.k), datasets: [{ data: pts.map(val), backgroundColor: cores, borderRadius: 4 }] },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length) { S.fSel = pts[els[0].index].k; render(); } },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length) irItens({ forn: pts[els[0].index].k }); },
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ff(c.parsed.x) + ' · ' + brl(pts[c.dataIndex].A.rec) + ' · Mk ' + mkf(pts[c.dataIndex].A.mk) } } },
         scales: { x: { ticks: { callback: v => w === 'rec' ? brlc(v) : w === 'mk' ? mkf(v) : pct(v, 0) } }, y: { ticks: { autoSkip: false } } } } });
   }
@@ -527,7 +558,7 @@
   }
 
   // ---------------- roteamento / render ----------------
-  const TABS = [['compra', 'Compradora · Classe › Linha › Item'], ['resumo', 'Resumo'], ['anual', 'Anual'], ['mensal', 'Mensal'], ['itens', 'Itens · Markup'], ['top', 'Top por linha'], ['forn', 'Fornecedores'], ['cxl', 'Classe × Linha × Recurso'], ['qual', 'Qualidade dos dados']];
+  const TABS = [['compra', 'Explorar · Classe › Linha › Item'], ['resumo', 'Resumo'], ['anual', 'Anual'], ['mensal', 'Mensal'], ['itens', 'Itens · Markup'], ['top', 'Top por linha'], ['forn', 'Fornecedores'], ['cxl', 'Classe × Linha × Recurso'], ['qual', 'Qualidade dos dados']];
   const VIEWS = { compra: [vCompra], forn: [vForn, posForn], qual: [vQual], resumo: [vResumo, posResumo], anual: [vAnual], mensal: [vMensal, posMensal], itens: [vItens], top: [vTop], cxl: [vCxL, posRecurso] };
   function setTab(t) { S.tab = t; render(); window.scrollTo(0, 0); }
   function render() {
@@ -550,14 +581,17 @@
       case 'uni': S.grupos = v === 'geral' ? null : new Set([v]); S.classes = null; S.bCls = null; S.bLin = null; S.xCls = null; S.xLin = null; S.aAbertos = new Set(); return reRender();
       case 'comp': S.compradores = v ? new Set([v]) : null; S.classes = null; S.bCls = null; S.bLin = null; return reRender();
       case 'rm': if (v === 'foraLinha') S.foraLinha = 'todos'; else if (v === 'q') S.q = ''; else S[v] = null; return reRender();
-      case 'bcls': S.bCls = v || null; S.bLin = null; S.bTop = 40; return reRender();
-      case 'blin': S.bLin = v || null; S.bTop = 40; return reRender();
+      case 'bcls': S.bCls = v || null; S.bLin = null; S.bAtt = null; S.bForn = null; S.bQ = ''; S.bTop = 40; return reRender();
+      case 'blin': S.bLin = v || null; S.bAtt = null; S.bForn = null; S.bQ = ''; S.bTop = 40; return reRender();
+      case 'batt': S.bAtt = S.bAtt === v ? null : v; S.bTop = 40; return reRender();
+      case 'bforn': S.bForn = S.bForn === v ? null : v; S.bTop = 40; return reRender();
+      case 'bview': S.bView = v; return reRender();
+      case 'blimpa': S.bAtt = null; S.bForn = null; return reRender();
+      case 'inav': { const nav = window.__nav || [], p = nav.indexOf(window.__cur) + (+v); if (p >= 0 && p < nav.length) abrirItem(nav[p]); return; }
       case 'bsort': S.bSort = v; return reRender();
-      case 'bmais': S.bTop += 40; return reRender();
-      case 'bkpi': return abrirLista('Itens da seleção', it => (!S.bCls || it.classe === S.bCls) && (!S.bLin || it.linha === S.bLin));
-      case 'att': return abrirLista({ susp: 'Classe A suspensos / fora de linha', mkbaixo: 'Classe A com markup baixo', neg: 'Vendidos abaixo do custo', queda: 'Queda > 30% vs 2025' }[v], it => (window.__att[v] || []).includes(it.i));
-      case 'forn': S.fornecedores = new Set([v]); S.fSel = v; return setTab('forn');
-      case 'fsel': S.fSel = S.fSel === v ? null : v; return reRender();
+      case 'bmais': S.bTop += 40; { const y = window.scrollY; reRender(); window.scrollTo(0, y); } return;
+      case 'forn': return irItens({ forn: v });
+      case 'fsel': return irItens({ forn: v });
       case 'fsort': case 'fsortseg': S.fSort = v; return reRender();
       case 'fviz': S.fViz = v; return reRender();
       case 'fmais': S.fTop = 999; return reRender();
@@ -585,7 +619,7 @@
       case 'tg': S.aAbertos.has(v) ? S.aAbertos.delete(v) : S.aAbertos.add(v); return reRender();
       case 'aexp': { const ord = ORD[S.aOrdem]; const f = filtro(); for (const k of L.consulta(f, it => it.grupo).keys()) S.aAbertos.add(k); const cl = L.consulta(f, it => it.grupo + SEP + it[ord[1]]); for (const k of cl.keys()) S.aAbertos.add(k); return reRender(); }
       case 'acol': S.aAbertos = new Set(); return reRender();
-      case 'ln': { const ord = ORD[S.aOrdem], n = v.split(SEP).length; if (n === 4) return abrirItem(porCod.get(v.split(SEP)[3]).i); return abrirLista(v.split(SEP).join(' › '), predDe(v, ord)); }
+      case 'ln': { const ord = ORD[S.aOrdem], n = v.split(SEP).length; if (n === 4) return abrirItem(porCod.get(v.split(SEP)[3]).i); const p = v.split(SEP), o = {}; p.forEach((x, k) => { const d = ord[k]; if (d === 'classe') o.cls = x; else if (d === 'linha') o.lin = x; else if (d === 'fornecedor') o.forn = x; }); return irItens(o); }
       case 'mdim': S.mDim = v; S.mSel = null; return reRender();
       case 'msel': S.mSel = v || null; return reRender();
       case 'mcel': { const [k, m] = [v.slice(0, v.lastIndexOf(':')), +v.slice(v.lastIndexOf(':') + 1)]; const dim = S.mDim; return abrirLista(k ? (dim === 'item' ? 'Item ' + k : k) : 'Total do filtro', k ? (dim === 'item' ? it => it.cod === k : it => it[dim] === k) : () => true, { mes: m || 0 }); }
@@ -595,11 +629,11 @@
       case 'icsv': return baixarCsv();
       case 'tord': S.tOrd = v; return reRender();
       case 'tall': S.tAll = true; return reRender();
-      case 'lin': S.linhas = new Set([v]); S.aOrdem = 'lc'; return setTab('anual');
+      case 'lin': return irItens({ lin: v });
       case 'alertas': return abrirLista('Top vendidos suspensos / fora de linha', it => (window.__alertas || []).includes(it.i));
       case 'xvis': S.xVis = v; return reRender();
       case 'xcls': S.xCls = v; S.xVis = 'recurso'; S.xLin = null; return reRender();
-      case 'xcel': { const [c, l] = v.split(SEP); return abrirLista(c + (l === '*' ? ' · demais linhas' : ' › ' + l), l === '*' ? it => it.classe === c : it => it.classe === c && it.linha === l); }
+      case 'xcel': { const [c, l] = v.split(SEP); return irItens({ cls: c, lin: l === '*' ? null : l }); }
       case 'xmais': S.xTop += 50; return reRender();
     }
   });
@@ -611,17 +645,18 @@
   });
   document.addEventListener('input', e => {
     const t = e.target;
+    if (t.id === 'bq') { S.bQ = t.value; S.bTop = 40; const p = $('#pitens'); if (p && window.__cd) p.innerHTML = compraItens(window.__cd); return; }
     if (t.id === 'busca') { clearTimeout(S._qt); S._qt = setTimeout(() => { S.q = t.value; const p = t.selectionStart; const v = VIEWS[S.tab]; $('#view').innerHTML = v[0](); if (v[1]) v[1](); }, 280); }
     if (t.dataset.msq) { S.msq[t.dataset.msq] = t.value; const k = t.dataset.msq, opts = optsFiltro(k), sel = S[k], q = t.value.toLowerCase(); $('#lst-' + k).innerHTML = opts.filter(o => !q || o.toLowerCase().includes(q)).map(o => `<label><input type="checkbox" data-ms="${k}" value="${esc(o)}" ${!sel || sel.has(o) ? 'checked' : ''}> ${esc(o)}</label>`).join(''); }
   });
   $('#veil').addEventListener('click', fechar); $('#dx').addEventListener('click', fechar);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); if ($('#modal').classList.contains('on') && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { const nav = window.__nav || [], p = nav.indexOf(window.__cur) + (e.key === 'ArrowRight' ? 1 : -1); if (p >= 0 && p < nav.length) abrirItem(nav[p]); } });
   const rotuloTema = () => { $('#tema').textContent = document.documentElement.dataset.theme === 'dark' ? '☀ claro' : '☾ escuro'; };
   rotuloTema();
   $('#tema').addEventListener('click', () => { const d = document.documentElement; const n = d.dataset.theme === 'dark' ? 'light' : 'dark'; d.dataset.theme = n; try { localStorage.setItem('rdec-tema', n); } catch (e) {} rotuloTema(); render(); });
 
   // ---------------- link compartilhável (estado na URL) ----------------
-  const HK = ['modo', 'grupos', 'classes', 'linhas', 'posicoes', 'fornecedores', 'compradores', 'canais', 'foraLinha', 'q', 'meses', 'bCls', 'bLin', 'xCls', 'xLin', 'xVis', 'aOrdem', 'bSort', 'fSel'];
+  const HK = ['modo', 'grupos', 'classes', 'linhas', 'posicoes', 'fornecedores', 'compradores', 'canais', 'foraLinha', 'q', 'meses', 'bCls', 'bLin', 'xCls', 'xLin', 'xVis', 'aOrdem', 'bSort', 'fSel', 'bAtt', 'bForn', 'bView'];
   function salvaHash() {
     try { const o = {}; HK.forEach(k => { const x = S[k]; o[k] = x instanceof Set ? [...x] : x; }); history.replaceState(null, '', '#' + S.tab + '~' + btoa(unescape(encodeURIComponent(JSON.stringify(o))))); } catch (e) {}
   }
