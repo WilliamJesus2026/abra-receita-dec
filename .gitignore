@@ -5,3 +5,4 @@ dados/
 dist/
 *.log
 __pycache__/
+.firebase/
