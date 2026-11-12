@@ -23,7 +23,7 @@ PUB = os.path.join(AQUI, 'public')
 DIST = os.path.join(AQUI, 'dist')
 THUMBS = os.path.join(AQUI, 'dados', 'thumbs')
 ACESSO = os.path.join(AQUI, 'ACESSO-INICIAL.txt')
-TAM = 128
+TAM = 220
 ITER = 300000
 
 

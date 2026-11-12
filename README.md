@@ -2,24 +2,8 @@
 
 Web app estático que substitui a leitura manual do Comparativo Anual para os grupos **INF DEC** e **ADT DEC**.
 
-## Estrutura
-- **Abas de universo no topo: INF DEC · ADT DEC · Visão geral** (cada uma com sua cor); o símbolo da Abra fica sempre visível (cabeçalho, abas, canto da tela, gaveta, detalhe do item e no lugar das fotos que faltam).
-- Modo claro/escuro (segue o tema do sistema; botão no cabeçalho).
-- O link da barra de endereço guarda filtros e seleção: dá para mandar a visão pronta para outra pessoa.
-- Filtros ativos aparecem como etiquetas removíveis.
-
-## Abas
-- **Explorar · Classe › Linha › Item** – 3 colunas na mesma tela (Classes | Linhas | Itens). Um clique na classe ou na linha já mostra os itens com foto, fornecedor, posição, ABC, markup e mês a mês. Filtros rápidos de atenção e de fornecedor, busca, visão em fotos ou tabela. Clique no item abre o detalhe, com ‹ › (ou setas do teclado) para passar de item em item. Cliques em gráficos, fornecedores, matriz e árvore anual levam direto para cá.
-- **Fornecedores** – ranking (barras com 4 visões) e tabela; detalhe por classe/linha; nomes unificados.
-- **Qualidade dos dados** – conferência com a planilha (receita, margem e CMV por grupo/ano) e verificações clicáveis (sem foto, sem posição, suspensos com venda, linha genérica, Mk negativo/alto, receita negativa, mais de um fornecedor, nomes de fornecedor parecidos).
-- **Resumo** – KPIs (receita, margem, markup, itens com venda), mês a mês 2026 × 2025 (5 visões), classes (4 visões), INF × ADT.
-- **Anual · Classe › Linha › Item** – árvore expansível (ou Linha › Classe › Item) com Rec 26/25, var., Mg, Mg %, Mk 26/25, Δ Mk e % do nível acima.
-- **Mensal** – mapa de calor mês a mês por Grupo/Classe/Linha/Item, 8 métricas, gráfico do recorte clicado.
-- **Itens · Markup** – todos os itens com foto, posição, receita, margem e markup; filtros, ordenação, CSV.
-- **Top por linha** – mais vendidos de cada linha (foto + posição), alerta de top vendido suspenso/fora de linha.
-- **Classe × Linha × Recurso** – matriz (% da linha na classe, % da classe na linha, R$, Mk, var.) e, por classe, recurso em proporção do que vende (% na classe, acumulado, ABC, % na linha, variação de participação) + mix por linha + Pareto.
-
-Todo número é clicável (gaveta com os itens que o compõem; clique no item abre o detalhe).
+## O que é
+App simples para **mostrar os produtos** a quem vai comprar: escolhe **INF DEC** ou **ADT DEC**, uma **classe**, e vê cada **linha** com os 5 produtos mais vendidos em foto (ver todos com um clique). Cada produto mostra quanto vende, markup, fornecedor e posição de venda; o detalhe traz 2026 × 2025 e as vendas mês a mês, com ‹ › para passar de produto em produto. Um seletor de mês (ano todo ou um mês) e uma busca (nome, código, fornecedor ou linha). Modo claro/escuro e o símbolo da Abra sempre visível.
 
 ## Regras (conferidas contra as dinâmicas da planilha)
 - Receita = `Rec` · Margem = `Mg C` · **Mk = (Rec − Cmv) ÷ Cmv**.

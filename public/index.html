@@ -11,18 +11,15 @@
 <body>
 <header class="top">
   <img class="lg" src="logo-abra.svg" alt="Abra">
-  <div><h1>Receita · INF DEC e ADT DEC</h1><div class="sub" id="sub">carregando…</div></div>
+  <nav class="uni" id="uni"></nav>
   <div class="sp"></div>
+  <select id="mes" aria-label="Período"></select>
+  <input type="search" id="busca" placeholder="Buscar produto…" aria-label="Buscar produto">
   <button class="btn" id="tema" title="Tema claro/escuro">◐</button>
 </header>
-<div class="nav" id="nav"><nav class="uni" id="uni"></nav><nav class="tabs" id="tabs"></nav></div>
-<div class="filtros" id="filtros"></div>
 <main id="view"></main>
-<img class="wm" src="logo-abra.svg" alt="Abra" aria-hidden="true">
 <div class="veil" id="veil"></div>
-<aside class="drawer" id="drawer"><div class="dh"><img class="lgm" src="logo-abra.svg" alt="Abra"><h3 id="dt"></h3><button class="x" id="dx" aria-label="Fechar">×</button></div><div class="db" id="db"></div></aside>
 <div class="modal" id="modal"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" charset="utf-8"></script>
 <script src="dados.js" charset="utf-8"></script>
 <script src="logica.js" charset="utf-8"></script>
 <script src="app.js" charset="utf-8"></script>
