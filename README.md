@@ -32,4 +32,4 @@ firebase deploy --only hosting:receita
 - Os dados vão **criptografados** (`dist/dados.enc`, AES-256-GCM, chave PBKDF2-SHA256 da senha): sem a senha os números não ficam legíveis nem no arquivo publicado. Quem tem a senha vê tudo; o código do app é público e não contém dados.
 
 ## Pendente
-- Fotos: busca só na VTEX pública (itens suspensos/fora do ar ficam sem foto).
+- Fotos: busca na VTEX pública das **duas lojas** (Abra Casa e Abra Cadabra). Só vale a foto do SKU cuja referência no site é exatamente o código do item (sem plano B por ID do Ritmo, que trazia foto de outro produto); sem foto confirmada, aparece o símbolo da Abra. `python auditar_fotos.py` confere o nome do item contra o produto do site e imagens repetidas.

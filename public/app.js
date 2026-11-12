@@ -76,8 +76,8 @@
   function card(r, n, nav, baseLinha) {
     const it = r.it;
     return `<div class="card" data-i="${it.i}" data-nav="${nav}"><div class="ft">${foto(it)}${n ? `<span class="rk">${n}</span>` : ''}</div>
-      <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div>${posicao(it)}</div>${baseLinha ? `<div class="peso2">${pesoBarra(r.a.rec / baseLinha)}<small><b>${pct(r.a.rec / baseLinha)}</b> da linha</small></div>` : ''}
-      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'novo vs 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b></div></div></div></div>`;
+      <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div class="pb">${posicao(it)}</div>${baseLinha ? `<div class="peso2">${pesoBarra(r.a.rec / baseLinha)}<small><b>${pct(r.a.rec / baseLinha)}</b> da linha</small></div>` : ''}
+      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'sem venda em 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b></div></div></div></div>`;
   }
 
   // ---------- tela ----------

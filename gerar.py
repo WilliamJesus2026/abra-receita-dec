@@ -139,8 +139,11 @@ def foto_de(cod, vtex):
         p = busca(loja, q)
         if p is False: falhou = True; continue
         if not p: continue
-        it = next((i for i in p.get('items', []) if i.get('images')), None)
-        img = it['images'][0]['imageUrl'] if it else ''
+        # só vale a foto do SKU cuja referência no site é exatamente este código (evita foto de outro produto:
+        # o ID do Ritmo às vezes aponta para um produto diferente no site)
+        it = next((i for i in p.get('items', []) if any(str(r.get('Value', '')).strip().lower()[:9] == cod for r in (i.get('referenceId') or []))), None)
+        if not it: continue
+        img = it['images'][0]['imageUrl'] if it.get('images') else ''
         return dict(url=re.sub(r'\?v=.*$', '', img), loja=loja.replace('www.', ''), link=p.get('link', ''), at=hoje)
     return None if falhou else dict(url='', loja='', link='', at=hoje)
 

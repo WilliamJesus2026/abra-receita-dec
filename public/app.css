@@ -129,3 +129,6 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 70px}
 .card .peso2 small{font-size:11.5px;color:var(--text-muted)}
 .card .peso2 b{color:var(--accent)}
 .classe small b{display:inline}
+
+.card .pb{min-height:46px;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start}
+.card .pb .bdg{align-self:flex-start}
