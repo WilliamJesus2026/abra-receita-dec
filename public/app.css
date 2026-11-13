@@ -136,3 +136,15 @@ main{max-width:1500px;margin:0 auto;padding:18px 20px 70px}
 body[data-uni="FORN"]{--accent:#5B3A6E}
 :root[data-theme="dark"] body[data-uni="FORN"]{--accent:#B393CC}
 .card .vl small[title]{cursor:help}
+
+.mkc em{font-style:italic;font-weight:500;font-size:.72em;color:var(--text-muted)}
+.card .vl .mkc{font-weight:700}
+
+/* Fornecedores: botões INF DEC / ADT DEC */
+.subuni{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.subuni button{display:flex;align-items:center;gap:10px;border:2px solid var(--border);background:var(--surface);border-radius:12px;padding:5px 14px 5px 7px;cursor:pointer;font-weight:700;font-size:14px;text-align:left}
+.subuni button img{width:30px;height:30px;border-radius:7px}
+.subuni button small{display:block;font-weight:500;font-size:11.5px;color:var(--text-muted)}
+.subuni button:hover{border-color:var(--accent)}
+.subuni button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.subuni button.on small{color:inherit;opacity:.85}

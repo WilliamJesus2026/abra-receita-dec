@@ -14,6 +14,8 @@
   const pct = v => v == null || !isFinite(v) ? '–' : (v * 100).toFixed(1).replace('.', ',') + '%';
   const varf = v => v == null ? '' : (v > 0 ? '+' : '') + pct(v);
   const mkf = v => v == null ? '–' : nf2.format(v * 100) + '%';   // igual à coluna Mk da dinâmica (ex.: 137,89%)
+  // item sem markup (ex.: sem venda no ano anterior): mostra o da classe, marcado como "(classe)"
+  const mkFmt = (v, fb) => v != null ? mkf(v) : (fb != null ? `<span class="mkc" title="Este item não tem markup neste período: mostrando o markup da classe">${mkf(fb)} <em>(classe)</em></span>` : '–');
   const dpp = (b, a) => b == null || a == null ? null : (b - a) * 100;   // Mk 2025 − Mk 2026, em pontos percentuais
   const ppf = v => v == null ? '–' : (v > 0 ? '+' : '') + nf2.format(v) + ' pp';
   const cv = v => v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '';
@@ -27,16 +29,16 @@
   const curto = c => c.replace(/^(INF|ADT) DEC /, '');
   const LIM_LINHAS = 10, TOP = 5;
 
-  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', cf: '', lin: '', pos: '', mk: '', ord: 'rec' };
+  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', cf: '', fg: '', lin: '', pos: '', mk: '', ord: 'rec' };
   try { let t = localStorage.getItem('rdec-tema'); if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark'; if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
   // ---------- dados do universo no período escolhido ----------
   const modoF = () => S.uni === FORN;
   const chaveG = it => modoF() ? it.fornecedor : it.classe;           // o que a lista da esquerda agrupa
   const nomeG = k => modoF() ? k : curto(k);
-  const totNome = () => modoF() ? 'INF + ADT' : NOME[S.uni];
+  const totNome = () => modoF() ? (S.fg ? NOME[S.fg] : 'INF + ADT') : NOME[S.uni];
   function itens(uni, mes) {
-    const f = { modo: 'ano', grupos: new Set(uni === FORN ? ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g)) : [uni]), meses: mes ? new Set([mes]) : null };
+    const f = { modo: 'ano', grupos: new Set(uni === FORN ? (S.fg ? [S.fg] : ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g))) : [uni]), meses: mes ? new Set([mes]) : null };
     return [...L.consulta(f, it => it.i)].map(([i, acc]) => ({ it: L.itens[i], acc, a: tot(acc, 2026), b: tot(acc, 2025) })).filter(r => r.a.rec > 0 || r.b.rec > 0);
   }
   const somar = rows => { const acc = L.somarAcc(rows.map(r => r.acc)); return { a: tot(acc, 2026), b: tot(acc, 2025) }; };
@@ -89,10 +91,11 @@
     const it = r.it;
     return `<div class="card" data-i="${it.i}" data-nav="${nav}"><div class="ft">${foto(it)}${n ? `<span class="rk">${n}</span>` : ''}</div>
       <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div class="pb">${posicao(it)}</div>${baseLinha ? `<div class="peso2">${pesoBarra(r.a.rec / baseLinha)}<small><b>${pct(r.a.rec / baseLinha)}</b> da linha</small></div>` : ''}
-      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'sem venda em 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkf(r.a.mk)}</b><small style="text-transform:none" title="Markup 2025 − Markup 2026: ${esc(ppf(dpp(r.b.mk, r.a.mk)))}">2025: ${mkf(r.b.mk)}</small></div></div></div></div>`;
+      <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'sem venda em 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkFmt(r.a.mk, (CLSMK.get(it.classe) || {a: {}}).a.mk)}</b><small style="text-transform:none" title="Markup 2025 − Markup 2026: ${esc(ppf(dpp(r.b.mk != null ? r.b.mk : (CLSMK.get(it.classe) || {b: {}}).b.mk, r.a.mk != null ? r.a.mk : (CLSMK.get(it.classe) || {a: {}}).a.mk)))}">2025: ${mkFmt(r.b.mk, (CLSMK.get(it.classe) || {b: {}}).b.mk)}</small></div></div></div></div>`;
   }
 
   // ---------- tela ----------
+  let CLSMK = new Map();   // classe -> {a: markup 2026, b: markup 2025} no período (para o item sem markup)
   let CTX = { total: 0, cls: new Map(), lin: new Map(), item: new Map() };
   const pesoBarra = f => `<span class="pbar"><i style="width:${Math.max(0, Math.min(100, (f || 0) * 100)).toFixed(1)}%"></i></span>`;
   let NAV = new Map();   // chave -> ids dos produtos, na ordem mostrada (para ‹ › no detalhe)
@@ -105,10 +108,12 @@
       return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${sub}</small></span></button>`;
     }).join('');
     const todos = itens(S.uni, S.mes), rows = todos.filter(passa); NAV = new Map();
+    const porCls = new Map(); todos.forEach(r => { if (!porCls.has(r.it.classe)) porCls.set(r.it.classe, []); porCls.get(r.it.classe).push(r); });
+    CLSMK = new Map([...porCls].map(([k, rs]) => [k, somar(rs)]));
     CTX = { total: 0, cls: new Map(), lin: new Map(), item: new Map() };
     rows.filter(r => r.a.rec > 0).forEach(r => { CTX.total += r.a.rec; CTX.cls.set(chaveG(r.it), (CTX.cls.get(chaveG(r.it)) || 0) + r.a.rec); const k = chaveG(r.it) + '|' + r.it.classe + '|' + r.it.linha; CTX.lin.set(k, (CTX.lin.get(k) || 0) + r.a.rec); CTX.item.set(r.it.i, r.a.rec); });
     const q = norm(S.q.trim());
-    if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q, filtrosHtml(todos, todos));
+    if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q, subFornHtml() + filtrosHtml(todos, todos));
     const classes = agrupar(rows, chaveG), all = somar(rows);
     if (S.cls && !classes.find(c => c.k === S.cls)) S.cls = null;
     const doClasse = S.cls ? todos.filter(r => chaveG(r.it) === S.cls) : todos;
@@ -122,17 +127,28 @@
     const cab = `<div class="cab"><h1>${esc(S.cls ? nomeG(S.cls) : (modoF() ? 'Todos os fornecedores' : 'Todas as classes'))} <span class="muted" style="font-size:16px;font-weight:500">· ${esc(totNome())}</span></h1>
       <div class="res"><span>Vende em ${esc(periodo())}: <b class="num">${brl(sel.a.rec)}</b> <span class="${cv(L.vari(sel.a.rec, sel.b.rec))}">${varf(L.vari(sel.a.rec, sel.b.rec))}</span> <span class="muted">${S.mes ? '' : 'vs 2025'}</span></span><span>Markup: <b class="num">${mkf(sel.a.mk)}</b> <span class="muted">(2025: ${mkf(sel.b.mk)} · 2025 − 2026: ${ppf(dpp(sel.b.mk, sel.a.mk))})</span></span>${S.cls ? `<span><b class="num">${pct(all.a.rec ? sel.a.rec / all.a.rec : null)}</b> do total de ${esc(totNome())}</span>` : ''}<span>${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ${sel.rows.length} ${sel.rows.length === 1 ? 'produto' : 'produtos'}</span></div></div>`;
     const baseL = S.cls ? sel.a.rec : all.a.rec;
+    const cmL = l => { const c = modoF() ? (l.rows[0] && l.rows[0].it.classe) : S.cls; return (c && CLSMK.get(c)) || { a: {}, b: {} }; };
     const secoes = vis.map(l => {
       const aberta = S.abertas.has((S.cls || '') + '|' + l.k), ord = ordenar(l.rows), mostra = aberta ? ord : ord.slice(0, TOP), key = 'l' + NAV.size;
       NAV.set(key, mostra.map(r => r.it.i));
       const fs = [...l.rows.reduce((m, r) => m.set(r.it.fornecedor, (m.get(r.it.fornecedor) || 0) + r.a.rec), new Map())].sort((x, y) => y[1] - x[1]).slice(0, 2).map(x => x[0]).join(', ');
-      return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkf(l.a.mk)}</b> <span title="Markup 2025 − Markup 2026">(2025: ${mkf(l.b.mk)} · 2025 − 2026: ${ppf(dpp(l.b.mk, l.a.mk))})</span>${modoF() ? '' : ' · ' + esc(fs)}</span><span class="peso">${pesoBarra(baseL ? l.a.rec / baseL : 0)}<b>${pct(baseL ? l.a.rec / baseL : null)}</b> ${S.cls ? (modoF() ? 'do fornecedor' : 'da classe') : 'do total'}</span></div>
+      return `<section class="linha"><div class="lh"><h2>${esc(l.k)}</h2><span class="meta">vende <b>${brl(l.a.rec)}</b> · markup <b>${mkFmt(l.a.mk, cmL(l).a.mk)}</b> <span title="Markup 2025 − Markup 2026">(2025: ${mkFmt(l.b.mk, cmL(l).b.mk)} · 2025 − 2026: ${ppf(dpp(l.b.mk != null ? l.b.mk : cmL(l).b.mk, l.a.mk != null ? l.a.mk : cmL(l).a.mk))})</span>${modoF() ? '' : ' · ' + esc(fs)}</span><span class="peso">${pesoBarra(baseL ? l.a.rec / baseL : 0)}<b>${pct(baseL ? l.a.rec / baseL : null)}</b> ${S.cls ? (modoF() ? 'do fornecedor' : 'da classe') : 'do total'}</span></div>
         <div class="cards">${mostra.map((r, n) => card(r, n + 1, key, l.a.rec)).join('')}</div>
         ${l.rows.length > TOP ? `<button class="btn mais" data-linha="${esc((S.cls || '') + '|' + l.k)}">${aberta ? 'Mostrar só os 5 mais vendidos' : 'Ver todos os ' + l.rows.length + ' produtos desta linha'}</button>` : ''}</section>`;
     }).join('');
-    $('#view').innerHTML = `${filtrosHtml(todos, doClasse)}<div class="grade">${lista}<div>${cab}${secoes || '<div class="vazio">Nenhum produto com venda neste período.</div>'}
+    $('#view').innerHTML = `${subFornHtml()}${filtrosHtml(todos, doClasse)}<div class="grade">${lista}<div>${cab}${secoes || '<div class="vazio">Nenhum produto com venda neste período.</div>'}
       ${linhas.length > LIM_LINHAS ? `<button class="btn" data-todas="1">${S.todasLinhas ? 'Mostrar só as ' + LIM_LINHAS + ' maiores linhas' : 'Ver as outras ' + (linhas.length - LIM_LINHAS) + ' linhas'}</button>` : ''}
       <div class="nota">Ordenado por: ${esc(ORD[S.ord].toLowerCase())} (${esc(periodo())}). Markup = (receita − custo) ÷ custo. Dados até ${m.dadosAte.split('-').reverse().join('/')}${S.mes === 11 || !S.mes ? ' (novembro até o dia ' + m.diaCorte + ', nos dois anos)' : ''}.</div></div></div>`;
+  }
+  // dentro de Fornecedores: ver os fornecedores do INF DEC, do ADT DEC ou dos dois
+  function subFornHtml() {
+    if (!modoF()) return '';
+    const opc = [['', 'INF + ADT', 'logo-abra.svg'], ['INF DEC', 'INF DEC', LOGO['INF DEC']], ['ADT DEC', 'ADT DEC', LOGO['ADT DEC']]], antes = S.fg;
+    const bt = opc.map(([v, n, lg]) => {
+      S.fg = v; const rs = itens(FORN, S.mes).filter(passa), t = somar(rs); S.fg = antes;
+      return `<button data-fg="${esc(v)}" class="${antes === v ? 'on' : ''}"><img src="${lg}" alt=""><span>${esc(n)}<small>${agrupar(rs, it => it.fornecedor).length} fornecedores · ${brlc(t.a.rec)}</small></span></button>`;
+    }).join('');
+    return `<div class="subuni">${bt}</div>`;
   }
   function renderBusca(rows, q, filtros) {
     const res = ordenar(rows.filter(r => norm(r.it.nome).includes(q) || r.it.cod.includes(q) || norm(r.it.fornecedor).includes(q) || norm(r.it.linha).includes(q)));
@@ -154,6 +170,7 @@
   function abrir(i, navKey) {
     const it = L.itens[i]; CUR = i; if (navKey) CURNAV = NAV.get(navKey) || [];
     const acc = L.consulta({ modo: 'ano' }, x => x.i === i ? 'k' : null).get('k') || L.novoAcc(), A = tot(acc, 2026), B = tot(acc, 2025), p = CURNAV.indexOf(i);
+    const cmA = somar([...L.consulta({ modo: 'ano', classes: new Set([it.classe]) }, x => x.i)].map(([k, ac]) => ({ acc: ac })));   // markup anual da classe do item
     $('#modal').innerHTML = `<button class="x" data-fechar aria-label="Fechar">×</button>
       ${p >= 0 ? `<div class="nav"><button class="btn" data-nav="-1" ${p === 0 ? 'disabled' : ''}>‹ anterior</button><span class="muted">${p + 1} de ${CURNAV.length}</span><button class="btn" data-nav="1" ${p === CURNAV.length - 1 ? 'disabled' : ''}>próximo ›</button></div>` : ''}
       <div class="topo">${foto(it, 'big')}<div><h2>${esc(it.nome)}</h2><div class="muted" style="margin:4px 0 8px">${esc(it.cod)} · ${esc(curto(it.classe))} › ${esc(it.linha)}</div>
@@ -161,7 +178,7 @@
         <div class="muted" style="font-size:13px">${it.disp != null ? 'Disponível: <b>' + nf0.format(it.disp) + '</b> · ' : ''}${it.preco != null ? 'Preço: <b>R$ ' + nf2.format(it.preco) + '</b>' : ''}${it.custo != null ? ' · Custo: R$ ' + nf2.format(it.custo) : ''}</div>
         ${it.link ? `<div style="margin-top:6px"><a href="https://${esc(String(it.link).replace(/^https?:\/\//, ''))}" target="_blank" rel="noopener">ver no site ↗</a></div>` : ''}</div></div>
       <div class="num4"><div><small>Vende em 2026</small><b class="num">${brl(A.rec)}</b><br><span class="${cv(L.vari(A.rec, B.rec))}">${varf(L.vari(A.rec, B.rec))} vs 2025</span></div><div><small>Vendeu em 2025</small><b class="num">${brl(B.rec)}</b></div>
-        <div><small>Markup 2026</small><b class="num">${mkf(A.mk)}</b></div><div><small>Markup 2025</small><b class="num">${mkf(B.mk)}</b></div><div><small>Mk 2025 − Mk 2026</small><b class="num">${ppf(dpp(B.mk, A.mk))}</b></div></div>
+        <div><small>Markup 2026</small><b class="num">${mkFmt(A.mk, cmA.a.mk)}</b></div><div><small>Markup 2025</small><b class="num">${mkFmt(B.mk, cmA.b.mk)}</b></div><div><small>Mk 2025 − Mk 2026</small><b class="num">${ppf(dpp(B.mk != null ? B.mk : cmA.b.mk, A.mk != null ? A.mk : cmA.a.mk))}</b>${A.mk == null || B.mk == null ? '<br><span class="muted">usa o markup da classe onde o item não tem</span>' : ''}</div></div>
       ${CTX.item.has(i) ? `<div class="num4"><div><small>Na linha ${esc(it.linha)}</small><b class="num">${pct(CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) ? CTX.item.get(i) / CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) : null)}</b><br><span class="muted">das vendas da linha ${modoF() ? 'deste fornecedor' : 'na classe'}</span></div><div><small>${modoF() ? 'No fornecedor ' + esc(it.fornecedor) : 'Na classe ' + esc(curto(it.classe))}</small><b class="num">${pct(CTX.cls.get(chaveG(it)) ? CTX.item.get(i) / CTX.cls.get(chaveG(it)) : null)}</b><br><span class="muted">das vendas ${modoF() ? 'do fornecedor' : 'da classe'}</span></div><div><small>No total ${esc(totNome())}</small><b class="num">${pct(CTX.total ? CTX.item.get(i) / CTX.total : null)}</b><br><span class="muted">das vendas de ${esc(periodo())}</span></div></div>` : ''}
       <div class="leg"><span><i style="background:var(--c25)"></i>2025</span><span><i style="background:var(--accent)"></i>2026</span><span>vendas mês a mês</span></div>${meses(acc)}`;
     $('#modal').classList.add('on'); $('#veil').classList.add('on');
@@ -175,7 +192,8 @@
     const c = t.closest('[data-i]'); if (c) return abrir(+c.dataset.i, c.dataset.nav);
     if (t.closest('[data-fechar]') || t.id === 'veil') return fechar();
     const n = t.closest('[data-nav]'); if (n && n.tagName === 'BUTTON') return vai(+n.dataset.nav);
-    const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.cf = ''; S.lin = ''; S.abertas = new Set(); S.todasLinhas = false; return render(); }
+    const fg = t.closest('[data-fg]'); if (fg) { S.fg = fg.dataset.fg; S.cls = null; S.cf = ''; S.lin = ''; S.abertas = new Set(); return render(); }
+    const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.cf = ''; S.lin = ''; S.fg = ''; S.abertas = new Set(); S.todasLinhas = false; return render(); }
     const k = t.closest('[data-cls]'); if (k) { S.cls = k.dataset.cls || null; S.todasLinhas = false; render(); return window.scrollTo(0, 0); }
     const l = t.closest('[data-linha]'); if (l) { const key = l.dataset.linha; S.abertas.has(key) ? S.abertas.delete(key) : S.abertas.add(key); const y = window.scrollY; render(); return window.scrollTo(0, y); }
     if (t.closest('[data-limpar]')) { S.forn = ''; S.cf = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
