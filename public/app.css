@@ -148,3 +148,6 @@ body[data-uni="FORN"]{--accent:#5B3A6E}
 .subuni button:hover{border-color:var(--accent)}
 .subuni button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .subuni button.on small{color:inherit;opacity:.85}
+
+body[data-uni="ALL"]{--accent:#0E6B7A}
+:root[data-theme="dark"] body[data-uni="ALL"]{--accent:#5FC3D4}

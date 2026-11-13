@@ -22,9 +22,9 @@
   const MESES = L.MESES, tot = L.tot;
   const mesesComDado = [...new Set(D.fatos.map(x => x[1] % 100))].sort((a, b) => a - b);
   const MESES_LONGO = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  const FORN = 'FORN';
-  const LOGO = { 'INF DEC': 'logo_abracadabra.png', 'ADT DEC': 'logo_abracasa.png', FORN: 'logo-abra.svg' };
-  const NOME = { 'INF DEC': 'INF DEC', 'ADT DEC': 'ADT DEC', FORN: 'Fornecedores' };
+  const FORN = 'FORN', ALL = 'ALL';   // ALL = "completão": INF DEC + ADT DEC juntos
+  const LOGO = { 'INF DEC': 'logo_abracadabra.png', 'ADT DEC': 'logo_abracasa.png', ALL: 'logo-abra.svg', FORN: 'logo-abra.svg' };
+  const NOME = { 'INF DEC': 'INF DEC', 'ADT DEC': 'ADT DEC', ALL: 'Completo', FORN: 'Fornecedores' };
   const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const curto = c => c.replace(/^(INF|ADT) DEC /, '');
   const LIM_LINHAS = 10, TOP = 5;
@@ -35,10 +35,11 @@
   // ---------- dados do universo no período escolhido ----------
   const modoF = () => S.uni === FORN;
   const chaveG = it => modoF() ? it.fornecedor : it.classe;           // o que a lista da esquerda agrupa
-  const nomeG = k => modoF() ? k : curto(k);
-  const totNome = () => modoF() ? (S.fg ? NOME[S.fg] : 'INF + ADT') : NOME[S.uni];
+  const nomeCls = k => S.uni === ALL ? curto(k) + ' · ' + (k.startsWith('INF') ? 'INF' : 'ADT') : curto(k);   // no completão a classe leva o grupo (há nomes iguais nos dois)
+  const nomeG = k => modoF() ? k : nomeCls(k);
+  const totNome = () => modoF() ? (S.fg ? NOME[S.fg] : 'INF + ADT') : S.uni === ALL ? 'INF + ADT' : NOME[S.uni];
   function itens(uni, mes) {
-    const f = { modo: 'ano', grupos: new Set(uni === FORN ? (S.fg ? [S.fg] : ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g))) : [uni]), meses: mes ? new Set([mes]) : null };
+    const f = { modo: 'ano', grupos: new Set(uni === ALL ? ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g)) : uni === FORN ? (S.fg ? [S.fg] : ['INF DEC', 'ADT DEC'].filter(g => D.grupos.includes(g))) : [uni]), meses: mes ? new Set([mes]) : null };
     return [...L.consulta(f, it => it.i)].map(([i, acc]) => ({ it: L.itens[i], acc, a: tot(acc, 2026), b: tot(acc, 2025) })).filter(r => r.a.rec > 0 || r.b.rec > 0);
   }
   const somar = rows => { const acc = L.somarAcc(rows.map(r => r.acc)); return { a: tot(acc, 2026), b: tot(acc, 2025) }; };
@@ -102,7 +103,7 @@
   function render() {
     document.body.dataset.uni = S.uni;
     const atual = S.uni;
-    $('#uni').innerHTML = ['INF DEC', 'ADT DEC', FORN].filter(g => g === FORN || D.grupos.includes(g)).map(g => {
+    $('#uni').innerHTML = ['INF DEC', 'ADT DEC', ALL, FORN].filter(g => g === FORN || g === ALL || D.grupos.includes(g)).map(g => {
       S.uni = g; const rs = itens(g, S.mes).filter(passa), t = somar(rs); S.uni = atual;
       const sub = g === FORN ? agrupar(rs, it => it.fornecedor).length + ' · ' + brlc(t.a.rec) : brlc(t.a.rec) + ' · Mk ' + mkf(t.a.mk);
       return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${sub}</small></span></button>`;
@@ -120,7 +121,7 @@
     const selAll = S.cls ? rows.filter(r => chaveG(r.it) === S.cls) : rows;   // inclui itens só de 2025, para o markup de 2025 ficar completo
     if (S.lin && !doClasse.some(r => r.it.linha === S.lin && r.a.rec > 0)) { S.lin = ''; return render(); }
     const sel = S.cls ? classes.find(c => c.k === S.cls) : { k: null, rows: rows.filter(r => r.a.rec > 0), a: all.a, b: all.b };
-    const linhas = agrupar(selAll, it => modoF() ? curto(it.classe) + ' › ' + it.linha : it.linha), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
+    const linhas = agrupar(selAll, it => modoF() ? curto(it.classe) + ' › ' + it.linha : (S.uni === ALL && !S.cls ? (it.grupo.startsWith('INF') ? 'INF' : 'ADT') + ' › ' + it.linha : it.linha)), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
     const lista = `<aside class="classes">
       <button class="classe ${!S.cls ? 'on' : ''}" data-cls=""><b>${modoF() ? 'Todos os fornecedores' : 'Todas as classes'}</b><small>${brlc(all.a.rec)} · Mk ${mkf(all.a.mk)}</small></button>
       ${classes.map(c => `<button class="classe ${S.cls === c.k ? 'on' : ''}" data-cls="${esc(c.k)}"><b>${esc(nomeG(c.k))}</b><small>${brlc(c.a.rec)} · Mk ${mkf(c.a.mk)} · ${c.rows.length} itens</small>${pesoBarra(all.a.rec ? c.a.rec / all.a.rec : 0)}<small><b>${pct(all.a.rec ? c.a.rec / all.a.rec : null)}</b> do total ${esc(totNome())}</small></button>`).join('')}</aside>`;
@@ -179,7 +180,7 @@
         ${it.link ? `<div style="margin-top:6px"><a href="https://${esc(String(it.link).replace(/^https?:\/\//, ''))}" target="_blank" rel="noopener">ver no site ↗</a></div>` : ''}</div></div>
       <div class="num4"><div><small>Vende em 2026</small><b class="num">${brl(A.rec)}</b><br><span class="${cv(L.vari(A.rec, B.rec))}">${varf(L.vari(A.rec, B.rec))} vs 2025</span></div><div><small>Vendeu em 2025</small><b class="num">${brl(B.rec)}</b></div>
         <div><small>Markup 2026</small><b class="num">${mkFmt(A.mk, cmA.a.mk)}</b></div><div><small>Markup 2025</small><b class="num">${mkFmt(B.mk, cmA.b.mk)}</b></div><div><small>Mk 2025 − Mk 2026</small><b class="num">${ppf(dpp(B.mk != null ? B.mk : cmA.b.mk, A.mk != null ? A.mk : cmA.a.mk))}</b>${A.mk == null || B.mk == null ? '<br><span class="muted">usa o markup da classe onde o item não tem</span>' : ''}</div></div>
-      ${CTX.item.has(i) ? `<div class="num4"><div><small>Na linha ${esc(it.linha)}</small><b class="num">${pct(CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) ? CTX.item.get(i) / CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) : null)}</b><br><span class="muted">das vendas da linha ${modoF() ? 'deste fornecedor' : 'na classe'}</span></div><div><small>${modoF() ? 'No fornecedor ' + esc(it.fornecedor) : 'Na classe ' + esc(curto(it.classe))}</small><b class="num">${pct(CTX.cls.get(chaveG(it)) ? CTX.item.get(i) / CTX.cls.get(chaveG(it)) : null)}</b><br><span class="muted">das vendas ${modoF() ? 'do fornecedor' : 'da classe'}</span></div><div><small>No total ${esc(totNome())}</small><b class="num">${pct(CTX.total ? CTX.item.get(i) / CTX.total : null)}</b><br><span class="muted">das vendas de ${esc(periodo())}</span></div></div>` : ''}
+      ${CTX.item.has(i) ? `<div class="num4"><div><small>Na linha ${esc(it.linha)}</small><b class="num">${pct(CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) ? CTX.item.get(i) / CTX.lin.get(chaveG(it) + '|' + it.classe + '|' + it.linha) : null)}</b><br><span class="muted">das vendas da linha ${modoF() ? 'deste fornecedor' : 'na classe'}</span></div><div><small>${modoF() ? 'No fornecedor ' + esc(it.fornecedor) : 'Na classe ' + esc(nomeCls(it.classe))}</small><b class="num">${pct(CTX.cls.get(chaveG(it)) ? CTX.item.get(i) / CTX.cls.get(chaveG(it)) : null)}</b><br><span class="muted">das vendas ${modoF() ? 'do fornecedor' : 'da classe'}</span></div><div><small>No total ${esc(totNome())}</small><b class="num">${pct(CTX.total ? CTX.item.get(i) / CTX.total : null)}</b><br><span class="muted">das vendas de ${esc(periodo())}</span></div></div>` : ''}
       <div class="leg"><span><i style="background:var(--c25)"></i>2025</span><span><i style="background:var(--accent)"></i>2026</span><span>vendas mês a mês</span></div>${meses(acc)}`;
     $('#modal').classList.add('on'); $('#veil').classList.add('on');
   }
