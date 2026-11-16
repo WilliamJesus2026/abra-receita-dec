@@ -29,7 +29,7 @@
   const curto = c => c.replace(/^(INF|ADT) DEC /, '');
   const LIM_LINHAS = 10, TOP = 5;
 
-  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', cf: '', fg: '', lin: '', pos: '', mk: '', ord: 'rec' };
+  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', cf: '', fg: '', qc: '', lin: '', pos: '', mk: '', ord: 'rec' };
   try { let t = localStorage.getItem('rdec-tema'); if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark'; if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
   // ---------- dados do universo no período escolhido ----------
@@ -53,11 +53,12 @@
   const POS = { '': 'Posição: todas', venda: 'À venda (imediata, encomenda, prazo, loja)', imediata: 'Entrega imediata', encomenda: 'Encomenda / prazo', loja: 'Estoque loja', suspensa: 'Venda suspensa', fl: 'Fora de linha' };
   const MK = { '': 'Markup: todos', neg: 'Negativo (abaixo do custo)', baixo: 'Abaixo de 100%', medio: 'De 100% a 200%', alto: 'Acima de 200%' };
   const ORD = { rec: 'Mais vendidos', mk: 'Maior markup', mkmenor: 'Menor markup', cresc: 'Mais cresceram (R$)', queda: 'Mais caíram (R$)' };
+  const casaClasse = (classe, busca) => { const c = norm(classe), t = norm(busca.trim()); return c.includes(t) || (/lumin|ilumin|abajur/.test(t) && /lumin|ilumin/.test(c)); };
   const passaPos = (it, p) => p === 'venda' ? (['Imediata', 'Encomenda', 'Prazo', 'Estoque loja'].includes(it.posTipo) && !it.fl) : p === 'imediata' ? it.posTipo === 'Imediata' : p === 'encomenda' ? (it.posTipo === 'Encomenda' || it.posTipo === 'Prazo') : p === 'loja' ? it.posTipo === 'Estoque loja' : p === 'suspensa' ? it.posTipo === 'Suspensa/Bloqueada' : p === 'fl' ? it.fl : true;
   const passaMk = (mk, k) => !k || (mk != null && (k === 'neg' ? mk < 0 : k === 'baixo' ? mk >= 0 && mk < 1 : k === 'medio' ? mk >= 1 && mk <= 2 : mk > 2));
-  const passaX = (r, sem) => (modoF() || sem === 'forn' || !S.forn || r.it.fornecedor === S.forn) && (!modoF() || sem === 'cf' || !S.cf || r.it.classe === S.cf) && (sem === 'lin' || !S.lin || r.it.linha === S.lin) && passaPos(r.it, S.pos) && passaMk(r.a.mk, S.mk);
+  const passaX = (r, sem) => (!S.qc || casaClasse(r.it.classe, S.qc)) && (modoF() || sem === 'forn' || !S.forn || r.it.fornecedor === S.forn) && (!modoF() || sem === 'cf' || !S.cf || r.it.classe === S.cf) && (sem === 'lin' || !S.lin || r.it.linha === S.lin) && passaPos(r.it, S.pos) && passaMk(r.a.mk, S.mk);
   const passa = r => passaX(r);
-  const nAtivos = () => [modoF() ? S.cf : S.forn, S.lin, S.pos, S.mk].filter(Boolean).length + (S.ord !== 'rec' ? 1 : 0);
+  const nAtivos = () => [modoF() ? S.cf : S.forn, S.lin, S.pos, S.mk, S.qc.trim()].filter(Boolean).length + (S.ord !== 'rec' ? 1 : 0);
   const chaveOrd = r => S.ord === 'mk' ? (r.a.mk == null ? -1e9 : r.a.mk) : S.ord === 'mkmenor' ? (r.a.mk == null ? -1e9 : -r.a.mk) : S.ord === 'cresc' ? r.a.rec - r.b.rec : S.ord === 'queda' ? r.b.rec - r.a.rec : r.a.rec;
   const ordenar = rows => rows.slice().sort((x, y) => chaveOrd(y) - chaveOrd(x));
   function filtrosHtml(todos, rowsClasse) {
@@ -69,7 +70,8 @@
     const cm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'cf')).forEach(r => cm.set(r.it.classe, (cm.get(r.it.classe) || 0) + r.a.rec));
     const clss = [...cm].sort((x, y) => y[1] - x[1]);
     const primeiro = modoF() ? sel('cf', S.cf, clss.map(([n, v]) => [n, curto(n) + ' · ' + brlc(v)]), 'Classe: todas') : sel('forn', S.forn, forns.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Fornecedor: todos');
-    return `<div class="filtros">${primeiro}${sel('lin', S.lin, lins.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Linha: todas')}${sel('pos', S.pos, Object.entries(POS).filter(x => x[0]).map(x => x), 'Posição: todas')}${sel('mk', S.mk, Object.entries(MK).filter(x => x[0]), 'Markup: todos')}
+    const buscaClasse = `<input type="search" id="qc" class="${S.qc.trim() ? 'ativo' : ''}" placeholder="Buscar classe… (ex.: almofada)" value="${esc(S.qc)}" aria-label="Buscar classe">`;
+    return `<div class="filtros">${buscaClasse}${primeiro}${sel('lin', S.lin, lins.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Linha: todas')}${sel('pos', S.pos, Object.entries(POS).filter(x => x[0]).map(x => x), 'Posição: todas')}${sel('mk', S.mk, Object.entries(MK).filter(x => x[0]), 'Markup: todos')}
       <select data-f="ord" class="${S.ord !== 'rec' ? 'ativo' : ''}" aria-label="Ordenar">${Object.entries(ORD).map(([v, n]) => `<option value="${v}" ${S.ord === v ? 'selected' : ''}>Ordenar: ${esc(n)}</option>`).join('')}</select>
       ${nAtivos() ? `<button class="btn" data-limpar>Limpar filtros (${nAtivos()})</button>` : ''}</div>`;
   }
@@ -168,6 +170,16 @@
       return bar(acc.R[2025][x], x0 + bw * .1, bw * .38, 'var(--c25)', MESES[x - 1] + '/2025: ' + brl(acc.R[2025][x])) + bar(acc.R[2026][x], x0 + bw * .5, bw * .38, 'var(--accent)', MESES[x - 1] + '/2026: ' + brl(acc.R[2026][x]))
         + `<text x="${(x0 + bw / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${MESES[x - 1]}</text>`; }).join('')}</svg>`;
   }
+  const dmy = iso => iso ? iso.split('-').reverse().join('/') : '';
+  const diasDesde = iso => Math.max(0, Math.round((new Date(m.dadosAte) - new Date(iso)) / 864e5));
+  function datasHtml(it) {
+    const p = [];
+    if (it.cad) p.push(`<span>Cadastro: <b>${dmy(it.cad)}</b></span>`);
+    if (it.entrada) p.push(`<span title="Informada em complementos.csv">1ª entrada em loja: <b>${dmy(it.entrada)}</b> <span class="muted">(há ${diasDesde(it.entrada)} dias)</span></span>`);
+    else if (it.vLoja) p.push(`<span title="Data da primeira venda nas lojas (RJ e SP), na base de vendas que começa em 01/01/2025. A data de 1ª entrada de estoque em loja ainda não está cadastrada.">1ª venda em loja: <b>${it.vLoja <= '2025-01-07' ? '01/01/2025 ou antes' : dmy(it.vLoja)}</b> ${it.vLoja <= '2025-01-07' ? '' : `<span class="muted">(há ${diasDesde(it.vLoja)} dias)</span>`}</span>`);
+    else p.push('<span class="muted" title="Ainda sem venda em loja física na base (a partir de 01/01/2025)">sem venda em loja</span>');
+    return `<div class="datas">${p.join('')}</div>`;
+  }
   function abrir(i, navKey) {
     const it = L.itens[i]; CUR = i; if (navKey) CURNAV = NAV.get(navKey) || [];
     const acc = L.consulta({ modo: 'ano' }, x => x.i === i ? 'k' : null).get('k') || L.novoAcc(), A = tot(acc, 2026), B = tot(acc, 2025), p = CURNAV.indexOf(i);
@@ -175,7 +187,7 @@
     $('#modal').innerHTML = `<button class="x" data-fechar aria-label="Fechar">×</button>
       ${p >= 0 ? `<div class="nav"><button class="btn" data-nav="-1" ${p === 0 ? 'disabled' : ''}>‹ anterior</button><span class="muted">${p + 1} de ${CURNAV.length}</span><button class="btn" data-nav="1" ${p === CURNAV.length - 1 ? 'disabled' : ''}>próximo ›</button></div>` : ''}
       <div class="topo">${foto(it, 'big')}<div><h2>${esc(it.nome)}</h2><div class="muted" style="margin:4px 0 8px">${esc(it.cod)} · ${esc(curto(it.classe))} › ${esc(it.linha)}</div>
-        <div><b>Fornecedor:</b> ${esc(it.fornecedor)}</div><div style="margin:8px 0">${posicao(it)}</div>
+        <div><b>Fornecedor:</b> ${esc(it.fornecedor)}</div>${datasHtml(it)}${it.classeOrig ? `<div class="muted" style="font-size:12.5px" title="O catálogo agrupa por tipo de produto; a classe original da planilha é mantida aqui">Classe na planilha: ${esc(it.classeOrig)}</div>` : ''}<div style="margin:8px 0">${posicao(it)}</div>
         <div class="muted" style="font-size:13px">${it.disp != null ? 'Disponível: <b>' + nf0.format(it.disp) + '</b> · ' : ''}${it.preco != null ? 'Preço: <b>R$ ' + nf2.format(it.preco) + '</b>' : ''}${it.custo != null ? ' · Custo: R$ ' + nf2.format(it.custo) : ''}</div>
         ${it.link ? `<div style="margin-top:6px"><a href="https://${esc(String(it.link).replace(/^https?:\/\//, ''))}" target="_blank" rel="noopener">ver no site ↗</a></div>` : ''}</div></div>
       <div class="num4"><div><small>Vende em 2026</small><b class="num">${brl(A.rec)}</b><br><span class="${cv(L.vari(A.rec, B.rec))}">${varf(L.vari(A.rec, B.rec))} vs 2025</span></div><div><small>Vendeu em 2025</small><b class="num">${brl(B.rec)}</b></div>
@@ -197,10 +209,14 @@
     const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.cf = ''; S.lin = ''; S.fg = ''; S.abertas = new Set(); S.todasLinhas = false; return render(); }
     const k = t.closest('[data-cls]'); if (k) { S.cls = k.dataset.cls || null; S.todasLinhas = false; render(); return window.scrollTo(0, 0); }
     const l = t.closest('[data-linha]'); if (l) { const key = l.dataset.linha; S.abertas.has(key) ? S.abertas.delete(key) : S.abertas.add(key); const y = window.scrollY; render(); return window.scrollTo(0, y); }
-    if (t.closest('[data-limpar]')) { S.forn = ''; S.cf = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
+    if (t.closest('[data-limpar]')) { S.forn = ''; S.cf = ''; S.qc = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
     if (t.closest('[data-todas]')) { S.todasLinhas = !S.todasLinhas; return render(); }
   });
   document.addEventListener('change', e => { const f = e.target.dataset && e.target.dataset.f; if (!f) return; S[f] = e.target.value; render(); });
+  let tqc; document.addEventListener('input', e => {
+    if (e.target.id !== 'qc') return; const v = e.target.value; clearTimeout(tqc);
+    tqc = setTimeout(() => { S.qc = v; S.cls = null; S.lin = ''; render(); const n = $('#qc'); if (n) { n.focus(); n.setSelectionRange(v.length, v.length); } }, 220);
+  });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); if ($('#modal').classList.contains('on')) { if (e.key === 'ArrowRight') vai(1); if (e.key === 'ArrowLeft') vai(-1); } });
   let tq; $('#busca').addEventListener('input', e => { clearTimeout(tq); tq = setTimeout(() => { S.q = e.target.value; render(); }, 250); });
   $('#mes').innerHTML = '<option value="0">Ano todo</option>' + mesesComDado.map(x => `<option value="${x}">${MESES_LONGO[x - 1]}</option>`).join('');

@@ -9,7 +9,7 @@
     const itens = D.itens.map((a, i) => ({
       i, cod: a[0], nome: a[1], g: a[2], c: a[3], l: a[4], pos: a[5], sit: a[6], prazo: a[7], fl: !!a[8],
       disp: a[9], prev: a[10], preco: a[11], custo: a[12], ritmo: a[13], foto: a[14], link: a[15],
-      f: a[16], cp: a[17], fab: a[18] || '', nForn: a[19] || 1, fornecedor: D.fornecedores[a[16]], comprador: D.compradores[a[17]],
+      f: a[16], cp: a[17], fab: a[18] || '', nForn: a[19] || 1, classeOrig: a[20] || '', cad: a[21] || '', vLoja: a[22] || '', entrada: a[23] || '', fornecedor: D.fornecedores[a[16]], comprador: D.compradores[a[17]],
       grupo: D.grupos[a[2]], classe: D.classes[a[3]], linha: D.linhas[a[4]], posTipo: D.posicoes[a[5]]
     }));
     const fatos = D.fatos;   // [item, aaaamm, canal, f, rec, mg, cmv]

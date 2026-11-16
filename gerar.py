@@ -15,7 +15,7 @@ Regras (conferidas contra as tabelas dinâmicas da própria planilha):
   Flag "Excluir"     (col. V) = 'n'  -> mesmo período em todos os meses (dias 1..N de cada mês)
   Linhas de comprador "Produtos para Venda"/"Pré série" já vêm marcadas 's' nas duas flags (ficam fora).
 """
-import argparse, csv, json, os, re, sys, time, urllib.parse, urllib.request, collections
+import argparse, csv, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request, collections
 from concurrent.futures import ThreadPoolExecutor
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -51,6 +51,59 @@ def limpa_forn(s):
     return s.strip() or 'Sem fornecedor'
 
 
+def norm(s):
+    return unicodedata.normalize('NFD', str(s or '')).encode('ascii', 'ignore').decode().lower()
+
+
+# Classe do catálogo = a classe do Ritmo ajustada para o catálogo ficar coerente (o que é almofada fica em Almofadas, etc.).
+# As trocas são SEMPRE dentro do mesmo grupo (INF DEC ou ADT DEC), então os totais por grupo não mudam; a classe original
+# da planilha fica guardada no item (campo "classe na planilha"). Para mudar uma regra, edite aqui e rode gerar.py de novo.
+FUSOES = {   # classes duplicadas ou com nome truncado -> classe única
+    'ADT DEC Garden Almofadas e Enchimen': 'ADT DEC Almofadas e Enchimentos',
+    'INF DEC Abajour e Luminárias': 'INF DEC Luminárias',
+    'INF DEC PELUCIA': 'INF DEC Bonecos e Pelúcia',
+    'ADT DEC Cachepot e Vaso': 'ADT DEC Vasos',
+}
+ALMOFADA = re.compile(r'^(kit )?(capa (de|p/|para|pra) )?almofad|enchimento (de|para|p/) almofad')
+CLASSE_ALMOFADA = {'INF DEC': 'INF DEC Almofadas', 'ADT DEC': 'ADT DEC Almofadas e Enchimentos'}
+
+
+def classe_catalogo(grupo, classe, nome):
+    n = norm(nome)
+    if grupo in CLASSE_ALMOFADA and ALMOFADA.search(n):      # almofada, capa de almofada, kit de almofadas
+        return CLASSE_ALMOFADA[grupo]
+    classe = FUSOES.get(classe, classe)
+    if classe == 'ADT DEC Iluminação':                       # classe genérica: luminária de piso/pé vai p/ Piso; de mesa/abajur p/ Mesa
+        if re.search(r'\bpiso\b|\bde pe\b', n): return 'ADT DEC Iluminação Piso'
+        if re.search(r'\bmesa\b|abajur', n): return 'ADT DEC Iluminação Mesa'
+    return classe
+
+
+def iso_br(s):
+    """dd/mm/aaaa -> aaaa-mm-dd ('' se vazio ou inválido)"""
+    m = re.match(r'^\s*(\d{1,2})/(\d{1,2})/(\d{4})', str(s or ''))
+    return f'{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}' if m else ''
+
+
+def ler_complementos():
+    """Datas informadas à parte (Recurso;Primeira entrada;Publicacao, dd/mm/aaaa): dados/complementos.csv, se existir."""
+    out = {}
+    for p in (os.path.join(AQUI, 'dados', 'complementos.csv'), os.path.join(AQUI, '..', 'abra-novos-produtos', 'dados', 'complementos.csv')):
+        if not os.path.exists(p):
+            continue
+        for enc in ('utf-8-sig', 'cp1252'):
+            try:
+                with open(p, encoding=enc, newline='') as f:
+                    rd = csv.reader(f, delimiter=';'); h = next(rd, None)
+                    for r in rd:
+                        if len(r) >= 2 and r[0].strip():
+                            out.setdefault(r[0].strip().lower(), iso_br(r[1]))
+                break
+            except UnicodeDecodeError:
+                continue
+    return {k: v for k, v in out.items() if v}
+
+
 def num_br(x):
     x = (x or '').strip()
     if not x: return None
@@ -70,6 +123,7 @@ def ler_ritmo(path):
         iCusto, iVtex, iNome, iCls = col('Custo'), col('Vtex'), col('Nome'), col('Classe Rec')
         iR1, iQ1 = col('Ritmo 1'), col('Qtd Vendas 1')
         iFab = ix.get('Fabricante')
+        iCad = next((i for n, i in ix.items() if n.startswith('Data de cadastro')), None)
         iDT = next((i for n, i in ix.items() if n.startswith('Dispon') and 'Total' in n), None)
         out = {}
         for r in rd:
@@ -82,7 +136,8 @@ def ler_ritmo(path):
             out[cod] = dict(_sa=standalone, sit=r[iSit].strip(), tipo=tipo, prazo=prazo, fl=fl,
                             disp=num_br(r[iDisp]), prev=num_br(r[iPrev]), preco=num_br(r[iPreco]), custo=num_br(r[iCusto]),
                             vtex=r[iVtex].strip() if r[iVtex].strip().isdigit() else '', ritmo=num_br(r[iR1]), nome=r[iNome].strip(),
-                            fab=(r[iFab].strip() if iFab is not None and len(r) > iFab else ''))
+                            fab=(r[iFab].strip() if iFab is not None and len(r) > iFab else ''),
+                            cad=iso_br(r[iCad]) if iCad is not None and len(r) > iCad else '')
     return out
 
 
@@ -197,10 +252,14 @@ def main():
     conf = collections.defaultdict(lambda: [0.0, 0.0, 0.0])                       # conferência direto da planilha
     fatos = collections.defaultdict(lambda: [0.0, 0.0, 0.0])
     ult = {}
+    prim_loja = {}     # código -> data da 1ª venda em loja física (Tipo Loja RJ ou SP), base a partir de 01/01/2025
     ultima = max(r['emi'] for r in rows)
     for r in rows:
         txt = str(r['rec_nome'] or '')
         cod = txt[:9].lower()
+        if norm(r['comprador']) not in ('produtos para venda', 'pre serie') and (r['rec'] or 0) > 0 and r['tipoloja'] in ('RJ', 'SP'):
+            d0 = r['emi'].strftime('%Y-%m-%d')
+            if cod not in prim_loja or d0 < prim_loja[cod]: prim_loja[cod] = d0
         if r['exclano'] != 'n' and r['excl'] != 'n': continue   # fora das duas visões
         fl = limpa_forn(r['forn']); aliases[fl].add(str(r['forn']).strip())
         forn_rec[txt_cod(r)][fl] += r['rec'] or 0
@@ -212,11 +271,12 @@ def main():
             ult[cod] = r['emi']; nomes[cod] = nome
             if cod not in ipos:
                 ipos[cod] = len(itens); itens.append(dict(cod=cod))
-            itens[ipos[cod]].update(g=di('grupo', r['grupo']), c=di('classe', r['classe']), l=di('linha', r['linha']), cp=di('comp', r['comprador']))
+            itens[ipos[cod]].update(g=di('grupo', r['grupo']), c=di('classe', classe_catalogo(r['grupo'], r['classe'], nome)), co=(r['classe'] if classe_catalogo(r['grupo'], r['classe'], nome) != r['classe'] else ''), l=di('linha', r['linha']), cp=di('comp', r['comprador']))
         ym = r['emi'].year * 100 + r['emi'].month
         f = 2 if r['excl'] == 'n' else 1
         k = (ipos[cod], ym, di('canal', r['tipoloja']), f)
         v = fatos[k]; v[0] += r['rec'] or 0; v[1] += r['mg'] or 0; v[2] += abs(r['cmv'] or 0)
+    compl = ler_complementos()
     cods = [i['cod'] for i in itens]
     cache = fotos(cods, ritmo) if not a.sem_fotos else (json.load(open(os.path.join(AQUI, 'dados', 'fotos.json'), encoding='utf-8')) if os.path.exists(os.path.join(AQUI, 'dados', 'fotos.json')) else {})
 
@@ -232,7 +292,7 @@ def main():
         else:
             p = [pt('Fora do Ritmo'), 'Não consta no relatório Ritmo', None, 0, None, None, None, None, None]
         fr = forn_rec[c]; fprin = max(fr, key=fr.get) if fr else 'Sem fornecedor'
-        out_itens.append([c, nomes[c], i['g'], i['c'], i['l']] + p + [ft.get('url', ''), ft.get('link', ''), di('forn', fprin), i['cp'], (rt or {}).get('fab', ''), len(fr)])
+        out_itens.append([c, nomes[c], i['g'], i['c'], i['l']] + p + [ft.get('url', ''), ft.get('link', ''), di('forn', fprin), i['cp'], (rt or {}).get('fab', ''), len(fr), i.get('co', ''), (rt or {}).get('cad', ''), prim_loja.get(c, ''), compl.get(c, '')])
     fatos_l = [[k[0], k[1], k[2], k[3], round(v[0], 2), round(v[1], 2), round(v[2], 2)] for k, v in sorted(fatos.items())]
     dados = dict(
         meta=dict(geradoEm=time.strftime('%Y-%m-%d %H:%M'), dadosAte=ultima.strftime('%Y-%m-%d'), diaCorte=ultima.day,
@@ -241,7 +301,7 @@ def main():
         fornecedores=dims['forn'], compradores=dims['comp'],
         aliases={k: sorted(v) for k, v in aliases.items() if len(v) > 1},
         conf=[[k[0], k[1], k[2], round(v[0], 2), round(v[1], 2), round(v[2], 2)] for k, v in sorted(conf.items())],
-        # item: [cod, nome, grupo, classe, linha, posTipo, situação, prazo, foraLinha, disp, prev, preco, custo, ritmo, foto, link, fornecedor, comprador, fabricante, nºFornecedores]
+        # item: [cod, nome, grupo, classe, linha, posTipo, situação, prazo, foraLinha, disp, prev, preco, custo, ritmo, foto, link, fornecedor, comprador, fabricante, nºFornecedores, classeNaPlanilha(se mudou), cadastro, 1ªVendaEmLoja, 1ªEntradaEmLoja(complementos.csv)]
         itens=out_itens,
         # fato: [item, aaaamm, canal, f(2=mesmo período, 1=só ano completo), rec, mg, cmv]
         fatos=fatos_l)

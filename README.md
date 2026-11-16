@@ -7,6 +7,18 @@ Quatro abas no topo: **INF DEC**, **ADT DEC**, **Completo** (todo mundo: INF + A
 
 App simples para **mostrar os produtos** a quem vai comprar: escolhe **INF DEC** ou **ADT DEC**, uma **classe**, e vê cada **linha** com os 5 produtos mais vendidos em foto (ver todos com um clique). Cada produto mostra quanto vende, markup, fornecedor e posição de venda. **Peso de cada nível no de cima:** a classe mostra quanto é do total do INF/ADT, a linha quanto é da classe e o produto quanto é da linha (com barrinha; no detalhe aparecem os três); o detalhe traz 2026 × 2025 e as vendas mês a mês, com ‹ › para passar de produto em produto. Um seletor de mês (ano todo ou um mês), uma busca (nome, código, fornecedor ou linha) e uma linha de filtros: **Fornecedor, Linha, Posição (imediata, encomenda, loja, suspensa, fora de linha), Markup (negativo, abaixo de 1, 1 a 2, acima de 2) e Ordenar por** (mais vendidos, maior/menor markup, mais cresceram/caíram). Os filtros mexem em tudo ao mesmo tempo: abas, classes, linhas e cartões. Modo claro/escuro e o símbolo da Abra sempre visível.
 
+## Classe do catálogo (≠ classe da planilha em 92 itens)
+O catálogo agrupa por tipo de produto: **o que é almofada fica em Almofadas, o que é luminária fica em Iluminação/Luminárias**. As regras ficam em `gerar.py` (`classe_catalogo`, `FUSOES`) e valem só **dentro do mesmo grupo** (INF DEC ou ADT DEC), então os totais por grupo não mudam; por classe eles diferem das dinâmicas da planilha. A classe original aparece no detalhe do produto ("Classe na planilha").
+- Almofadas: nome começando com Almofada / Capa de (ou p/) Almofada / Kit de almofadas → "INF DEC Almofadas" ou "ADT DEC Almofadas e Enchimentos" (inclui as almofadas de amamentação que estavam em Enxoval).
+- Fusões: ADT "Garden Almofadas e Enchimen" → Almofadas e Enchimentos; INF "Abajour e Luminárias" → Luminárias; INF "PELUCIA" → Bonecos e Pelúcia; ADT "Cachepot e Vaso" → Vasos.
+- ADT "Iluminação" (genérica): luminária de piso/pé → Iluminação Piso; de mesa/abajur → Iluminação Mesa.
+- **Buscar classe**: campo "Buscar classe…" em todas as abas (INF, ADT, Completo e Fornecedores); "luminária" também acha as classes "Iluminação".
+
+## Datas por produto (detalhe)
+- **Cadastro** (Ritmo).
+- **1ª venda em loja** (lojas físicas RJ e SP, base de vendas a partir de 01/01/2025; "01/01/2025 ou antes" quando cai na primeira semana da base).
+- **1ª entrada em loja**: o campo existe no Análise de Lançamentos mas está **vazio** (aguardando o arquivo). Se existir `dados/complementos.csv` (colunas `Recurso;Primeira entrada;Publicacao`, datas dd/mm/aaaa), o app passa a mostrar a 1ª entrada no lugar da 1ª venda.
+
 ## Regras (conferidas contra as dinâmicas da planilha)
 - Receita = `Rec` · Margem = `Mg C` · **Mk = (Rec − Cmv) ÷ Cmv**.
 - Classe = "Classe Rec" do Ritmo · **Linha = Marca do Ritmo** (nos ADT DEC a "Linha" é o material).
