@@ -63,6 +63,8 @@ FUSOES = {   # classes duplicadas ou com nome truncado -> classe única
     'INF DEC Abajour e Luminárias': 'INF DEC Luminárias',
     'INF DEC PELUCIA': 'INF DEC Bonecos e Pelúcia',
     'ADT DEC Cachepot e Vaso': 'ADT DEC Vasos',
+    'ADT DEC Iluminação Piso': 'ADT DEC Iluminação',     # luminária é luminária: piso, mesa e as genéricas numa classe só (pedido do William, 16/11/2026)
+    'ADT DEC Iluminação Mesa': 'ADT DEC Iluminação',
 }
 ALMOFADA = re.compile(r'^(kit )?(capa (de|p/|para|pra) )?almofad|enchimento (de|para|p/) almofad')
 CLASSE_ALMOFADA = {'INF DEC': 'INF DEC Almofadas', 'ADT DEC': 'ADT DEC Almofadas e Enchimentos'}
@@ -73,9 +75,6 @@ def classe_catalogo(grupo, classe, nome):
     if grupo in CLASSE_ALMOFADA and ALMOFADA.search(n):      # almofada, capa de almofada, kit de almofadas
         return CLASSE_ALMOFADA[grupo]
     classe = FUSOES.get(classe, classe)
-    if classe == 'ADT DEC Iluminação':                       # classe genérica: luminária de piso/pé vai p/ Piso; de mesa/abajur p/ Mesa
-        if re.search(r'\bpiso\b|\bde pe\b', n): return 'ADT DEC Iluminação Piso'
-        if re.search(r'\bmesa\b|abajur', n): return 'ADT DEC Iluminação Mesa'
     return classe
 
 
