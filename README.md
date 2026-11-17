@@ -15,7 +15,7 @@ O catálogo agrupa por tipo de produto: **o que é almofada fica em Almofadas, o
 - **Buscar classe**: campo "Buscar classe…" em todas as abas (INF, ADT, Completo e Fornecedores); "luminária" também acha as classes "Iluminação".
 
 ## Proporções (peso de cada nível)
-Sempre sobre o **total inteiro**, mesmo com filtros ligados: classe ÷ total do universo, linha ÷ **classe inteira**, produto ÷ **linha inteira**. Com um filtro, o percentual mostra a fatia que sobrou dentro do todo (ex.: Realtha = 72,7% do Enxoval). No Fornecedores, a linha é % da classe inteira (todos os fornecedores) e o produto % da linha inteira; o detalhe também mostra o peso no fornecedor.
+Sempre sobre o **total inteiro**, mesmo com filtros ligados: classe ÷ total do universo, linha ÷ **classe inteira**, produto ÷ **classe inteira** (é o número principal do cartão: item de R$ 210 mil numa classe de R$ 653 mil = 32,3%) e, ao lado, produto ÷ **linha inteira**. Com um filtro, o percentual mostra a fatia que sobrou dentro do todo (ex.: Realtha = 72,7% do Enxoval). No Fornecedores, a linha é % da classe inteira (todos os fornecedores) e o produto % da linha inteira; o detalhe também mostra o peso no fornecedor.
 
 ## Datas por produto (detalhe)
 - **Cadastro** (Ritmo).

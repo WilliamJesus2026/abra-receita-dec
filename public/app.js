@@ -93,7 +93,7 @@
   function card(r, n, nav, baseLinha) {
     const it = r.it;
     return `<div class="card" data-i="${it.i}" data-nav="${nav}"><div class="ft">${foto(it)}${n ? `<span class="rk">${n}</span>` : ''}</div>
-      <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div class="pb">${posicao(it)}</div>${baseLinha ? `<div class="peso2">${pesoBarra(r.a.rec / baseLinha)}<small><b>${pct(r.a.rec / baseLinha)}</b> da linha inteira</small></div>` : ''}
+      <div class="tx"><div class="nm" title="${esc(it.nome)}">${esc(it.nome)}</div><div class="fo">${esc(it.fornecedor)}</div><div class="pb">${posicao(it)}</div>${(CTX.cls.get(it.classe) || baseLinha) ? `<div class="peso2" title="Peso do produto nas vendas da classe inteira e da linha inteira">${pesoBarra(r.a.rec / (CTX.cls.get(it.classe) || baseLinha))}<small><b>${pct(r.a.rec / (CTX.cls.get(it.classe) || baseLinha))}</b> da classe${baseLinha ? ` · ${pct(r.a.rec / baseLinha)} da linha` : ''}</small></div>` : ''}
       <div class="vl"><div><small>Vende ${esc(S.mes ? MESES[S.mes - 1] : 'no ano')}</small><b class="num">${brl(r.a.rec)}</b><small class="${cv(L.vari(r.a.rec, r.b.rec))}" style="text-transform:none">${r.b.rec > 0 ? varf(L.vari(r.a.rec, r.b.rec)) + ' vs 2025' : 'sem venda em 2025'}</small></div><div style="text-align:right"><small>Markup</small><b class="num">${mkFmt(r.a.mk, (CLSMK.get(it.classe) || {a: {}}).a.mk)}</b><small style="text-transform:none" title="Markup 2025 − Markup 2026: ${esc(ppf(dpp(r.b.mk != null ? r.b.mk : (CLSMK.get(it.classe) || {b: {}}).b.mk, r.a.mk != null ? r.a.mk : (CLSMK.get(it.classe) || {a: {}}).a.mk)))}">2025: ${mkFmt(r.b.mk, (CLSMK.get(it.classe) || {b: {}}).b.mk)}</small></div></div></div></div>`;
   }
 
