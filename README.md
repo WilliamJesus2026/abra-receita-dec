@@ -14,6 +14,9 @@ O catálogo agrupa por tipo de produto: **o que é almofada fica em Almofadas, o
 - ADT: **Iluminação Piso, Iluminação Mesa e a genérica Iluminação viram uma classe só, "Iluminação"** (41 itens; luminária é luminária). Mantas infantis (em Enxoval) e quadros (em Adornos) ficam como na planilha.
 - **Buscar classe**: campo "Buscar classe…" em todas as abas (INF, ADT, Completo e Fornecedores); "luminária" também acha as classes "Iluminação".
 
+## Proporções (peso de cada nível)
+Sempre sobre o **total inteiro**, mesmo com filtros ligados: classe ÷ total do universo, linha ÷ **classe inteira**, produto ÷ **linha inteira**. Com um filtro, o percentual mostra a fatia que sobrou dentro do todo (ex.: Realtha = 72,7% do Enxoval). No Fornecedores, a linha é % da classe inteira (todos os fornecedores) e o produto % da linha inteira; o detalhe também mostra o peso no fornecedor.
+
 ## Datas por produto (detalhe)
 - **Cadastro** (Ritmo).
 - **1ª venda em loja** (lojas físicas RJ e SP, base de vendas a partir de 01/01/2025; "01/01/2025 ou antes" quando cai na primeira semana da base).
