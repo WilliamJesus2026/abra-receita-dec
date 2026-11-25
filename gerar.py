@@ -230,6 +230,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--planilha', required=True); ap.add_argument('--ritmo', required=True)
     ap.add_argument('--sem-fotos', action='store_true')
+    ap.add_argument('--hub', default=os.path.join(AQUI, '..', 'abra-novos-produtos', 'dados', 'vendas_loja.json'), help='vendas do Innovaro/Hub (unidades e valor por produto e dia)')
     a = ap.parse_args()
     log('Lendo planilha (aba Dados)…')
     rows = ler_dados(a.planilha)
@@ -276,6 +277,23 @@ def main():
         k = (ipos[cod], ym, di('canal', r['tipoloja']), f)
         v = fatos[k]; v[0] += r['rec'] or 0; v[1] += r['mg'] or 0; v[2] += abs(r['cmv'] or 0)
     compl = ler_complementos()
+    # unidades e valor por mês (2026) do Hub/Innovaro, até o mesmo dia da planilha; só para os itens DEC
+    hub = {}
+    if os.path.exists(a.hub):
+        with open(a.hub, encoding='utf-8') as fh:
+            hj = json.load(fh)
+        corte = ultima.strftime('%Y-%m-%d'); dec = {i['cod'] for i in itens}
+        for k, dias in hj.get('prod', {}).items():
+            c = re.sub(r'\s+', '', str(k)).lower()[:9]
+            if c not in dec: continue
+            u, v = [0] * 12, [0.0] * 12
+            for d, (q, val) in dias.items():
+                if d.startswith('2026-') and d <= corte:
+                    m = int(d[5:7]) - 1; u[m] += q; v[m] += val
+            if any(u): hub[c] = [u, [round(x, 2) for x in v]]
+        log(f'Hub: unidades de {len(hub)} itens DEC até {corte}')
+    else:
+        log('Hub não encontrado: sem unidades/preço vendido.')
     cods = [i['cod'] for i in itens]
     cache = fotos(cods, ritmo) if not a.sem_fotos else (json.load(open(os.path.join(AQUI, 'dados', 'fotos.json'), encoding='utf-8')) if os.path.exists(os.path.join(AQUI, 'dados', 'fotos.json')) else {})
 
@@ -291,7 +309,7 @@ def main():
         else:
             p = [pt('Fora do Ritmo'), 'Não consta no relatório Ritmo', None, 0, None, None, None, None, None]
         fr = forn_rec[c]; fprin = max(fr, key=fr.get) if fr else 'Sem fornecedor'
-        out_itens.append([c, nomes[c], i['g'], i['c'], i['l']] + p + [ft.get('url', ''), ft.get('link', ''), di('forn', fprin), i['cp'], (rt or {}).get('fab', ''), len(fr), i.get('co', ''), (rt or {}).get('cad', ''), prim_loja.get(c, ''), compl.get(c, '')])
+        out_itens.append([c, nomes[c], i['g'], i['c'], i['l']] + p + [ft.get('url', ''), ft.get('link', ''), di('forn', fprin), i['cp'], (rt or {}).get('fab', ''), len(fr), i.get('co', ''), (rt or {}).get('cad', ''), prim_loja.get(c, ''), compl.get(c, ''), hub.get(c)])
     fatos_l = [[k[0], k[1], k[2], k[3], round(v[0], 2), round(v[1], 2), round(v[2], 2)] for k, v in sorted(fatos.items())]
     dados = dict(
         meta=dict(geradoEm=time.strftime('%Y-%m-%d %H:%M'), dadosAte=ultima.strftime('%Y-%m-%d'), diaCorte=ultima.day,
@@ -300,7 +318,7 @@ def main():
         fornecedores=dims['forn'], compradores=dims['comp'],
         aliases={k: sorted(v) for k, v in aliases.items() if len(v) > 1},
         conf=[[k[0], k[1], k[2], round(v[0], 2), round(v[1], 2), round(v[2], 2)] for k, v in sorted(conf.items())],
-        # item: [cod, nome, grupo, classe, linha, posTipo, situação, prazo, foraLinha, disp, prev, preco, custo, ritmo, foto, link, fornecedor, comprador, fabricante, nºFornecedores, classeNaPlanilha(se mudou), cadastro, 1ªVendaEmLoja, 1ªEntradaEmLoja(complementos.csv)]
+        # item: [cod, nome, grupo, classe, linha, posTipo, situação, prazo, foraLinha, disp, prev, preco, custo, ritmo, foto, link, fornecedor, comprador, fabricante, nºFornecedores, classeNaPlanilha(se mudou), cadastro, 1ªVendaEmLoja, 1ªEntradaEmLoja(complementos.csv), [unidades por mês 2026, valor Hub por mês 2026]]
         itens=out_itens,
         # fato: [item, aaaamm, canal, f(2=mesmo período, 1=só ano completo), rec, mg, cmv]
         fatos=fatos_l)
