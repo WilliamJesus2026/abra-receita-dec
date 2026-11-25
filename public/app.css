@@ -157,3 +157,20 @@ body[data-uni="ALL"]{--accent:#0E6B7A}
 
 .datas{display:flex;flex-wrap:wrap;gap:2px 16px;font-size:13px;margin:6px 0}
 .datas span[title]{cursor:help}
+
+/* filtros com caixas de seleção múltipla */
+.msel{position:relative}
+.msel>button{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+.msel>button:hover{border-color:var(--accent)}
+.msel>button.ativo{border-color:var(--accent);color:var(--accent);font-weight:600}
+.msel .pn{position:absolute;top:calc(100% + 4px);left:0;z-index:60;width:310px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--sh2);padding:10px;display:none}
+.msel.open .pn{display:block}
+.msel .pn .top{display:flex;gap:6px;margin-bottom:6px}
+.msel .pn .top .btn{padding:4px 10px;font-size:13px}
+.msel .pn input[type=search]{width:100%;margin-bottom:6px}
+.msel .lst{max-height:300px;overflow:auto}
+.msel .lst label{display:flex;gap:9px;align-items:center;padding:5px 6px;border-radius:7px;cursor:pointer;font-size:13.5px}
+.msel .lst label:hover{background:var(--surface-2)}
+.msel .lst label span{flex:1;min-width:0}
+.msel .lst label em{font-style:normal;color:var(--text-muted);font-size:12px;white-space:nowrap}
+.msel .lst input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);flex:none}

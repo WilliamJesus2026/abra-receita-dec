@@ -29,7 +29,7 @@
   const curto = c => c.replace(/^(INF|ADT) DEC /, '');
   const LIM_LINHAS = 10, TOP = 5;
 
-  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: '', cf: '', fg: '', qc: '', lin: '', pos: '', mk: '', ord: 'rec' };
+  const S = { uni: D.grupos.includes('INF DEC') ? 'INF DEC' : D.grupos[0], cls: null, mes: 0, q: '', abertas: new Set(), todasLinhas: false, forn: null, cf: null, fg: '', qc: '', lin: null, pos: null, mk: null, tl: null, open: null, msq: {}, ord: 'rec' };   // filtros: null = todos; Set = só os marcados
   try { let t = localStorage.getItem('rdec-tema'); if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark'; if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
   // ---------- dados do universo no período escolhido ----------
@@ -50,28 +50,53 @@
   }
 
   // ---------- filtros ----------
-  const POS = { '': 'Posição: todas', venda: 'À venda (imediata, encomenda, prazo, loja)', imediata: 'Entrega imediata', encomenda: 'Encomenda / prazo', loja: 'Estoque loja', suspensa: 'Venda suspensa', fl: 'Fora de linha' };
-  const MK = { '': 'Markup: todos', neg: 'Negativo (abaixo do custo)', baixo: 'Abaixo de 100%', medio: 'De 100% a 200%', alto: 'Acima de 200%' };
+  // Posição: cada produto cai em UMA categoria (fora de linha tem prioridade), para dar para marcar "tudo, menos fora de linha".
+  const POSCAT = ['Entrega imediata', 'Encomenda / prazo', 'Estoque loja', 'Venda suspensa', 'Sem posição', 'Fora de linha'];
+  const catPos = it => it.fl ? 'Fora de linha' : it.posTipo === 'Imediata' ? 'Entrega imediata' : (it.posTipo === 'Encomenda' || it.posTipo === 'Prazo') ? 'Encomenda / prazo' : it.posTipo === 'Estoque loja' ? 'Estoque loja' : it.posTipo === 'Suspensa/Bloqueada' ? 'Venda suspensa' : 'Sem posição';
+  const MKCAT = ['Negativo', 'Abaixo de 100%', 'De 100% a 200%', 'Acima de 200%', 'Sem markup'];
+  const catMk = mk => mk == null ? 'Sem markup' : mk < 0 ? 'Negativo' : mk < 1 ? 'Abaixo de 100%' : mk <= 2 ? 'De 100% a 200%' : 'Acima de 200%';
+  const TLCAT = ['Piso', 'Mesa', 'Parede', 'Outras'];
+  const tipoLum = it => { if (!/Ilumin|Lumin/.test(it.classe)) return ''; const n = norm(it.nome); return /\bpiso\b|\bde pe\b/.test(n) ? 'Piso' : /\bmesa\b|abajur/.test(n) ? 'Mesa' : /parede|arandela/.test(n) ? 'Parede' : 'Outras'; };
+  L.itens.forEach(it => { it.tl = tipoLum(it); });
   const ORD = { rec: 'Mais vendidos', mk: 'Maior markup', mkmenor: 'Menor markup', cresc: 'Mais cresceram (R$)', queda: 'Mais caíram (R$)' };
   const casaClasse = (classe, busca) => { const c = norm(classe), t = norm(busca.trim()); return c.includes(t) || (/lumin|ilumin|abajur/.test(t) && /lumin|ilumin/.test(c)); };
-  const passaPos = (it, p) => p === 'venda' ? (['Imediata', 'Encomenda', 'Prazo', 'Estoque loja'].includes(it.posTipo) && !it.fl) : p === 'imediata' ? it.posTipo === 'Imediata' : p === 'encomenda' ? (it.posTipo === 'Encomenda' || it.posTipo === 'Prazo') : p === 'loja' ? it.posTipo === 'Estoque loja' : p === 'suspensa' ? it.posTipo === 'Suspensa/Bloqueada' : p === 'fl' ? it.fl : true;
-  const passaMk = (mk, k) => !k || (mk != null && (k === 'neg' ? mk < 0 : k === 'baixo' ? mk >= 0 && mk < 1 : k === 'medio' ? mk >= 1 && mk <= 2 : mk > 2));
-  const passaX = (r, sem) => (!S.qc || casaClasse(r.it.classe, S.qc)) && (modoF() || sem === 'forn' || !S.forn || r.it.fornecedor === S.forn) && (!modoF() || sem === 'cf' || !S.cf || r.it.classe === S.cf) && (sem === 'lin' || !S.lin || r.it.linha === S.lin) && passaPos(r.it, S.pos) && passaMk(r.a.mk, S.mk);
+  const tem = (set, v) => !set || set.has(v);
+  const passaX = (r, sem) => (!S.qc || casaClasse(r.it.classe, S.qc))
+    && (modoF() || sem === 'forn' || tem(S.forn, r.it.fornecedor)) && (!modoF() || sem === 'cf' || tem(S.cf, r.it.classe))
+    && (sem === 'lin' || tem(S.lin, r.it.linha)) && (sem === 'pos' || tem(S.pos, catPos(r.it))) && (sem === 'mk' || tem(S.mk, catMk(r.a.mk)))
+    && (sem === 'tl' || !S.tl || (r.it.tl && S.tl.has(r.it.tl)));
   const passa = r => passaX(r);
-  const nAtivos = () => [modoF() ? S.cf : S.forn, S.lin, S.pos, S.mk, S.qc.trim()].filter(Boolean).length + (S.ord !== 'rec' ? 1 : 0);
+  const nAtivos = () => [modoF() ? S.cf : S.forn, S.lin, S.pos, S.mk, S.tl].filter(x => x).length + (S.qc.trim() ? 1 : 0) + (S.ord !== 'rec' ? 1 : 0);
   const chaveOrd = r => S.ord === 'mk' ? (r.a.mk == null ? -1e9 : r.a.mk) : S.ord === 'mkmenor' ? (r.a.mk == null ? -1e9 : -r.a.mk) : S.ord === 'cresc' ? r.a.rec - r.b.rec : S.ord === 'queda' ? r.b.rec - r.a.rec : r.a.rec;
   const ordenar = rows => rows.slice().sort((x, y) => chaveOrd(y) - chaveOrd(x));
+  // tipo de iluminação (piso / mesa) só aparece quando se olha iluminação
+  const tipoVisivel = () => (!modoF() && S.cls && /Ilumin|Lumin/.test(S.cls)) || /lumin|ilumin|abajur/.test(norm(S.qc)) || (modoF() && S.cf && [...S.cf].some(c => /Ilumin|Lumin/.test(c)));
+
+  // caixa de seleção múltipla (marcar várias opções de uma vez; tudo marcado = sem filtro)
+  const OPS = {};
+  function msList(key, ops) {
+    const sel = S[key], q = norm(S.msq[key] || '');
+    const l = ops.filter(o => !q || norm(o[1]).includes(q)).map(o => `<label><input type="checkbox" data-msv="${key}" value="${esc(o[0])}" ${!sel || sel.has(o[0]) ? 'checked' : ''}><span>${esc(o[1])}</span>${o[2] != null ? `<em>${brlc(o[2])}</em>` : ''}</label>`).join('');
+    return l || '<div class="muted" style="padding:8px">nada encontrado</div>';
+  }
+  function msel(key, rotulo, ops) {
+    OPS[key] = ops; const sel = S[key], n = sel ? ops.filter(o => sel.has(o[0])).length : ops.length;
+    return `<div class="msel ${S.open === key ? 'open' : ''}"><button type="button" data-msopen="${key}" class="${sel ? 'ativo' : ''}">${esc(rotulo)}${sel ? ` (${n} de ${ops.length})` : ': todos'} ▾</button>
+      <div class="pn"><div class="top"><button type="button" class="btn" data-msall="${key}">Todos</button><button type="button" class="btn" data-msnone="${key}">Nenhum</button></div>
+      ${ops.length > 8 ? `<input type="search" data-msq="${key}" placeholder="buscar…" value="${esc(S.msq[key] || '')}">` : ''}<div class="lst" id="lst-${key}">${msList(key, ops)}</div></div></div>`;
+  }
   function filtrosHtml(todos, rowsClasse) {
-    const fm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'forn')).forEach(r => fm.set(r.it.fornecedor, (fm.get(r.it.fornecedor) || 0) + r.a.rec));
-    const forns = [...fm].sort((x, y) => y[1] - x[1]);
-    const lm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'lin')).forEach(r => lm.set(r.it.linha, (lm.get(r.it.linha) || 0) + r.a.rec));
-    const lins = [...lm].sort((x, y) => y[1] - x[1]);
-    const sel = (id, atual, ops, vazio) => `<select data-f="${id}" class="${atual ? 'ativo' : ''}" aria-label="${esc(vazio)}"><option value="">${esc(vazio)}</option>${ops.map(([v, n]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
-    const cm = new Map(); rowsClasse.filter(r => r.a.rec > 0 && passaX(r, 'cf')).forEach(r => cm.set(r.it.classe, (cm.get(r.it.classe) || 0) + r.a.rec));
-    const clss = [...cm].sort((x, y) => y[1] - x[1]);
-    const primeiro = modoF() ? sel('cf', S.cf, clss.map(([n, v]) => [n, curto(n) + ' · ' + brlc(v)]), 'Classe: todas') : sel('forn', S.forn, forns.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Fornecedor: todos');
+    const soma = (rs, k, sem) => { const m = new Map(); rs.filter(r => r.a.rec > 0 && passaX(r, sem)).forEach(r => { const v = k(r); m.set(v, (m.get(v) || 0) + r.a.rec); }); return m; };
+    const ordenaM = m => [...m].sort((x, y) => y[1] - x[1]);
+    const dos = (cats, m) => cats.map(c => [c, c, m.get(c) || 0]);
+    const forns = ordenaM(soma(rowsClasse, r => r.it.fornecedor, 'forn')).map(([n, v]) => [n, n, v]);
+    const clss = ordenaM(soma(rowsClasse, r => r.it.classe, 'cf')).map(([n, v]) => [n, curto(n), v]);
+    const lins = ordenaM(soma(rowsClasse, r => r.it.linha, 'lin')).map(([n, v]) => [n, n, v]);
+    const pos = dos(POSCAT, soma(rowsClasse, r => catPos(r.it), 'pos'));
+    const mk = dos(MKCAT, soma(rowsClasse, r => catMk(r.a.mk), 'mk'));
+    const tl = tipoVisivel() ? dos(TLCAT, soma(rowsClasse.filter(r => r.it.tl), r => r.it.tl, 'tl')).filter(o => o[2] > 0 || (S.tl && S.tl.has(o[0]))) : null;
     const buscaClasse = `<input type="search" id="qc" class="${S.qc.trim() ? 'ativo' : ''}" placeholder="Buscar classe… (ex.: almofada)" value="${esc(S.qc)}" aria-label="Buscar classe">`;
-    return `<div class="filtros">${buscaClasse}${primeiro}${sel('lin', S.lin, lins.map(([n, v]) => [n, n + ' · ' + brlc(v)]), 'Linha: todas')}${sel('pos', S.pos, Object.entries(POS).filter(x => x[0]).map(x => x), 'Posição: todas')}${sel('mk', S.mk, Object.entries(MK).filter(x => x[0]), 'Markup: todos')}
+    return `<div class="filtros">${buscaClasse}${modoF() ? msel('cf', 'Classe', clss) : msel('forn', 'Fornecedor', forns)}${msel('lin', 'Linha', lins)}${tl ? msel('tl', 'Tipo de iluminação', tl) : ''}${msel('pos', 'Posição', pos)}${msel('mk', 'Markup', mk)}
       <select data-f="ord" class="${S.ord !== 'rec' ? 'ativo' : ''}" aria-label="Ordenar">${Object.entries(ORD).map(([v, n]) => `<option value="${v}" ${S.ord === v ? 'selected' : ''}>Ordenar: ${esc(n)}</option>`).join('')}</select>
       ${nAtivos() ? `<button class="btn" data-limpar>Limpar filtros (${nAtivos()})</button>` : ''}</div>`;
   }
@@ -110,6 +135,7 @@
       const sub = g === FORN ? agrupar(rs, it => it.fornecedor).length + ' · ' + brlc(t.a.rec) : brlc(t.a.rec) + ' · Mk ' + mkf(t.a.mk);
       return `<button data-uni="${esc(g)}" class="${S.uni === g ? 'on' : ''}"><img src="${LOGO[g]}" alt=""><span>${esc(NOME[g])}<small>${sub}</small></span></button>`;
     }).join('');
+    if (!tipoVisivel()) S.tl = null;
     const todos = itens(S.uni, S.mes), rows = todos.filter(passa); NAV = new Map();
     const porCls = new Map(); todos.forEach(r => { if (!porCls.has(r.it.classe)) porCls.set(r.it.classe, []); porCls.get(r.it.classe).push(r); });
     CLSMK = new Map([...porCls].map(([k, rs]) => [k, somar(rs)]));
@@ -121,11 +147,12 @@
     const q = norm(S.q.trim());
     if (q) return renderBusca(rows.filter(r => r.a.rec > 0), q, subFornHtml() + filtrosHtml(todos, todos));
     const classes = agrupar(rows, chaveG), all = somar(rows);
-    if (S.cls && !classes.find(c => c.k === S.cls)) S.cls = null;
+    if (S.cls && !todos.some(r => chaveG(r.it) === S.cls)) S.cls = null;   // só some se a classe não existe; filtros que esvaziam a tela mantêm a classe
     const doClasse = S.cls ? todos.filter(r => chaveG(r.it) === S.cls) : todos;
     const selAll = S.cls ? rows.filter(r => chaveG(r.it) === S.cls) : rows;   // inclui itens só de 2025, para o markup de 2025 ficar completo
-    if (S.lin && !doClasse.some(r => r.it.linha === S.lin && r.a.rec > 0)) { S.lin = ''; return render(); }
-    const sel = S.cls ? classes.find(c => c.k === S.cls) : { k: null, rows: rows.filter(r => r.a.rec > 0), a: all.a, b: all.b };
+    if (S.lin) { const pres = new Set(doClasse.filter(r => r.a.rec > 0).map(r => r.it.linha)), nx = new Set([...S.lin].filter(x => pres.has(x))); if (nx.size !== S.lin.size) { S.lin = nx.size ? nx : null; return render(); } }
+    const zero = { rec: 0, mg: 0, cmv: 0, mk: null, mgp: null };
+    const sel = S.cls ? (classes.find(c => c.k === S.cls) || { k: S.cls, rows: [], a: zero, b: zero }) : { k: null, rows: rows.filter(r => r.a.rec > 0), a: all.a, b: all.b };
     const keyL = it => modoF() ? curto(it.classe) + ' › ' + it.linha : (S.uni === ALL && !S.cls ? (it.grupo.startsWith('INF') ? 'INF' : 'ADT') + ' › ' + it.linha : it.linha);
     const linhas = agrupar(selAll, keyL), vis = S.todasLinhas ? linhas : linhas.slice(0, LIM_LINHAS);
     const lista = `<aside class="classes">
@@ -208,24 +235,46 @@
   const vai = d => { const p = CURNAV.indexOf(CUR) + d; if (p >= 0 && p < CURNAV.length) abrir(CURNAV[p]); };
 
   // ---------- eventos ----------
+  // caixas de seleção múltipla dos filtros
+  const fechaMsel = () => { S.open = null; document.querySelectorAll('.msel.open').forEach(m => m.classList.remove('open')); };
+  const reMsel = (key, foco) => { const l = document.getElementById('lst-' + key), top = l ? l.scrollTop : 0; S.open = key; const y = window.scrollY; render(); window.scrollTo(0, y); const n = document.getElementById('lst-' + key); if (n) n.scrollTop = top; if (foco) { const i = document.querySelector('[data-msq="' + key + '"]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } } };
   document.addEventListener('click', e => {
     const t = e.target;
+    if (!t.closest('.msel')) { if (S.open) fechaMsel(); }
+    else {
+      const ab = t.closest('[data-msopen]'); if (ab) { const k = ab.dataset.msopen, jaAberto = S.open === k; fechaMsel(); if (!jaAberto) { S.open = k; ab.closest('.msel').classList.add('open'); } return; }
+      const todos = t.closest('[data-msall]'); if (todos) { S[todos.dataset.msall] = null; return reMsel(todos.dataset.msall); }
+      const nenhum = t.closest('[data-msnone]'); if (nenhum) { S[nenhum.dataset.msnone] = new Set(); return reMsel(nenhum.dataset.msnone); }
+      return;
+    }
     const c = t.closest('[data-i]'); if (c) return abrir(+c.dataset.i, c.dataset.nav);
     if (t.closest('[data-fechar]') || t.id === 'veil') return fechar();
     const n = t.closest('[data-nav]'); if (n && n.tagName === 'BUTTON') return vai(+n.dataset.nav);
-    const fg = t.closest('[data-fg]'); if (fg) { S.fg = fg.dataset.fg; S.cls = null; S.cf = ''; S.lin = ''; S.abertas = new Set(); return render(); }
-    const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.cf = ''; S.lin = ''; S.fg = ''; S.abertas = new Set(); S.todasLinhas = false; return render(); }
+    const fg = t.closest('[data-fg]'); if (fg) { S.fg = fg.dataset.fg; S.cls = null; S.cf = null; S.lin = null; S.abertas = new Set(); return render(); }
+    const u = t.closest('#uni [data-uni]'); if (u) { S.uni = u.dataset.uni; S.cls = null; S.cf = null; S.lin = null; S.tl = null; S.fg = ''; S.abertas = new Set(); S.todasLinhas = false; return render(); }
     const k = t.closest('[data-cls]'); if (k) { S.cls = k.dataset.cls || null; S.todasLinhas = false; render(); return window.scrollTo(0, 0); }
     const l = t.closest('[data-linha]'); if (l) { const key = l.dataset.linha; S.abertas.has(key) ? S.abertas.delete(key) : S.abertas.add(key); const y = window.scrollY; render(); return window.scrollTo(0, y); }
-    if (t.closest('[data-limpar]')) { S.forn = ''; S.cf = ''; S.qc = ''; S.lin = ''; S.pos = ''; S.mk = ''; S.ord = 'rec'; return render(); }
+    if (t.closest('[data-limpar]')) { S.forn = null; S.cf = null; S.qc = ''; S.lin = null; S.pos = null; S.mk = null; S.tl = null; S.msq = {}; S.open = null; S.ord = 'rec'; return render(); }
     if (t.closest('[data-todas]')) { S.todasLinhas = !S.todasLinhas; return render(); }
   });
-  document.addEventListener('change', e => { const f = e.target.dataset && e.target.dataset.f; if (!f) return; S[f] = e.target.value; render(); });
+  document.addEventListener('change', e => {
+    const t = e.target, d = t.dataset || {};
+    if (d.msv) {   // marcar / desmarcar uma opção: tudo marcado volta a ser "sem filtro"
+      const k = d.msv, todas = (OPS[k] || []).map(o => o[0]), s = S[k] ? new Set(S[k]) : new Set(todas);
+      s.has(t.value) ? s.delete(t.value) : s.add(t.value);
+      S[k] = (s.size >= todas.length && todas.every(x => s.has(x))) ? null : s; return reMsel(k);
+    }
+    if (!d.f) return; S[d.f] = t.value; render();
+  });
+  document.addEventListener('input', e => {
+    const k = e.target.dataset && e.target.dataset.msq; if (!k) return; S.msq[k] = e.target.value;
+    const l = document.getElementById('lst-' + k); if (l) l.innerHTML = msList(k, OPS[k] || []);
+  });
   let tqc; document.addEventListener('input', e => {
     if (e.target.id !== 'qc') return; const v = e.target.value; clearTimeout(tqc);
-    tqc = setTimeout(() => { S.qc = v; S.cls = null; S.lin = ''; render(); const n = $('#qc'); if (n) { n.focus(); n.setSelectionRange(v.length, v.length); } }, 220);
+    tqc = setTimeout(() => { S.qc = v; S.cls = null; S.lin = null; render(); const n = $('#qc'); if (n) { n.focus(); n.setSelectionRange(v.length, v.length); } }, 220);
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); if ($('#modal').classList.contains('on')) { if (e.key === 'ArrowRight') vai(1); if (e.key === 'ArrowLeft') vai(-1); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { fechar(); fechaMsel(); } if ($('#modal').classList.contains('on')) { if (e.key === 'ArrowRight') vai(1); if (e.key === 'ArrowLeft') vai(-1); } });
   let tq; $('#busca').addEventListener('input', e => { clearTimeout(tq); tq = setTimeout(() => { S.q = e.target.value; render(); }, 250); });
   $('#mes').innerHTML = '<option value="0">Ano todo</option>' + mesesComDado.map(x => `<option value="${x}">${MESES_LONGO[x - 1]}</option>`).join('');
   $('#mes').addEventListener('change', e => { S.mes = +e.target.value; render(); });
