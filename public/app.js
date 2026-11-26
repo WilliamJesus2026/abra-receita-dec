@@ -305,5 +305,12 @@
   const rotulo = () => { $('#tema').textContent = document.documentElement.dataset.theme === 'dark' ? '☀ claro' : '☾ escuro'; };
   rotulo();
   $('#tema').addEventListener('click', () => { const d = document.documentElement, n = d.dataset.theme === 'dark' ? 'light' : 'dark'; d.dataset.theme = n; try { localStorage.setItem('rdec-tema', n); } catch (e) {} rotulo(); });
+  // aviso de atualização: vendas até o último dia da planilha; vermelho se estiverem atrasadas (> 3 dias)
+  (() => {
+    const hoje = new Date(Date.now() - 3 * 36e5), ate = new Date(m.dadosAte + 'T12:00:00Z'), atraso = Math.floor((hoje - ate) / 864e5);
+    const r = (/_(\d{4})(\d{2})(\d{2})\d{4}\.csv/.exec(m.ritmo) || []);
+    $('#aviso').innerHTML = `Vendas até <b>${m.dadosAte.split('-').reverse().join('/')}</b>${atraso > 3 ? ` · <b>desatualizadas há ${atraso} dias</b>` : ''} · posições do Ritmo de ${r[3] ? r[3] + '/' + r[2] + '/' + r[1] : '–'}`;
+    $('#aviso').className = atraso > 3 ? 'atrasado' : '';
+  })();
   render();
 })();

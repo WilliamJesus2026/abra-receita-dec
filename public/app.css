@@ -184,3 +184,6 @@ body[data-uni="ALL"]{--accent:#0E6B7A}
 .duas th,.duas td{padding:4px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
 .duas th:first-child,.duas td:first-child{text-align:left;white-space:normal}
 .duas th{color:var(--text-muted);font-size:11px;text-transform:uppercase}
+
+#aviso{max-width:1500px;margin:0 auto;padding:8px 20px 0;font-size:12.5px;color:var(--text-muted)}
+#aviso.atrasado{color:var(--bad);font-weight:600}

@@ -45,6 +45,10 @@ Sempre sobre o **total inteiro**, mesmo com filtros ligados: classe ÷ total do 
 - Item = código (9 primeiros caracteres do Recurso): a dinâmica separa o mesmo código por nome antigo/novo; o app une.
 - Posição = coluna Situação do relatório Ritmo (Imediata/Encomenda/Prazo/Estoque loja/Suspensa/Sem posição; "FL" = fora de linha).
 
+## Rotina diária (só base real)
+`diario.py` (chamado por `atualizar-receita-diario.bat`, Agendador do Windows ~09:20): espera o Ritmo **de hoje** (`../Ritmo_Diario` ou Downloads, até 11:30; sem ele **não publica**), usa o `Comparativo_Anual*.xlsm/.xlsx` mais novo (`../Comparativo_Diario` ou Downloads) para as vendas, roda `gerar.py`, confere que as vendas nunca voltam no tempo, monta o `dist` e publica no Firebase. Resultado em `dados/ultimo-status.json` e `atualizar-receita.log`. O app mostra "Vendas até DD/MM · posições do Ritmo de DD/MM" e fica **vermelho** quando as vendas estão atrasadas (> 3 dias). **Para as vendas ficarem em dia, salve o Comparativo atualizado em `../Comparativo_Diario`.**
+Agendar (uma vez): `schtasks /Create /TN "Receita DEC - diario" /TR "<pasta>bra-receita-dectualizar-receita-diario.bat" /SC DAILY /ST 09:20`
+
 ## Atualizar
 ```
 python gerar.py --planilha "C:/.../Comparativo_Anual_....xlsm" --ritmo "C:/.../Relatorio_Ritmo_Abra_AAAAMMDDHHMM.csv"
