@@ -17,6 +17,12 @@ O catálogo agrupa por tipo de produto: **o que é almofada fica em Almofadas, o
 ## Filtros (caixas de marcar)
 Fornecedor, Linha, Posição, Markup e (em Iluminação) Tipo de iluminação são caixas de seleção múltipla: tudo marcado = sem filtro; desmarcar uma opção = "tudo, menos essa". Posição: cada produto cai numa categoria só — Entrega imediata, Encomenda / prazo, Estoque loja, Venda suspensa, Sem posição e **Fora de linha** (tem prioridade sobre as outras), então dá para ver "tudo menos fora de linha". Markup: Negativo, Abaixo de 100%, De 100% a 200%, Acima de 200%, Sem markup. Tipo de iluminação (Piso / Mesa / Parede / Outras, pelo nome do produto) aparece só ao olhar a classe Iluminação/Luminárias ou buscar "luminária".
 
+## Venda por loja e por estado
+- Filtros **Loja** (21 lojas, com o canal: RJ, SP, E-Commerce, MarketPlace…) e **Estado** (25 UFs), de marcar. Valem para tudo (abas, classes, linhas, cartões, totais); os percentuais passam a ser **dentro** da loja/estado escolhidos.
+- Com loja ou estado escolhido, unidades e preço vendido (Hub) não aparecem, porque o Hub não está nesse recorte; fica o preço de tabela.
+- No detalhe do produto: tabelas **Venda por loja** e **Venda por estado** (2026, % e 2025).
+- Origem: colunas Loja e Estado da aba Dados do Comparativo (Estado = UF da venda; no E-Commerce é o destino).
+
 ## Preço médio e unidades
 - **Preço de tabela**: Ritmo (Preço Venda); no cabeçalho de classe/linha é a média ponderada pela venda.
 - **Preço médio vendido e unidades (2026)**: vendas do Innovaro no Hub (`../abra-novos-produtos/dados/vendas_loja.json`, lido pelo `gerar.py --hub`), valor ÷ unidades, até o mesmo dia da planilha e respeitando o mês escolhido. Cobre 859 dos 1.247 itens (97% da receita), só 2026. O valor do Hub é bruto (~11% acima da receita da planilha), por isso o preço vendido nunca é misturado com a receita da planilha.

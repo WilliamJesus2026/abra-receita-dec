@@ -239,7 +239,8 @@ def main():
     ritmo = ler_ritmo(a.ritmo)
     log(f'{len(ritmo)} recursos no Ritmo')
 
-    dims = {k: [] for k in ('grupo', 'classe', 'linha', 'canal', 'forn', 'comp')}
+    dims = {k: [] for k in ('grupo', 'classe', 'linha', 'canal', 'forn', 'comp', 'loja', 'uf')}
+    loja_canal = collections.defaultdict(collections.Counter)
     pos = {k: {} for k in dims}
     def di(k, v):
         v = '' if v is None else str(v)
@@ -274,7 +275,8 @@ def main():
             itens[ipos[cod]].update(g=di('grupo', r['grupo']), c=di('classe', classe_catalogo(r['grupo'], r['classe'], nome)), co=(r['classe'] if classe_catalogo(r['grupo'], r['classe'], nome) != r['classe'] else ''), l=di('linha', r['linha']), cp=di('comp', r['comprador']))
         ym = r['emi'].year * 100 + r['emi'].month
         f = 2 if r['excl'] == 'n' else 1
-        k = (ipos[cod], ym, di('canal', r['tipoloja']), f)
+        loja_canal[str(r['loja'])][str(r['tipoloja'])] += 1
+        k = (ipos[cod], ym, di('canal', r['tipoloja']), f, di('loja', r['loja']), di('uf', r['uf']))
         v = fatos[k]; v[0] += r['rec'] or 0; v[1] += r['mg'] or 0; v[2] += abs(r['cmv'] or 0)
     compl = ler_complementos()
     # unidades e valor por mês (2026) do Hub/Innovaro, até o mesmo dia da planilha; só para os itens DEC
@@ -310,17 +312,18 @@ def main():
             p = [pt('Fora do Ritmo'), 'Não consta no relatório Ritmo', None, 0, None, None, None, None, None]
         fr = forn_rec[c]; fprin = max(fr, key=fr.get) if fr else 'Sem fornecedor'
         out_itens.append([c, nomes[c], i['g'], i['c'], i['l']] + p + [ft.get('url', ''), ft.get('link', ''), di('forn', fprin), i['cp'], (rt or {}).get('fab', ''), len(fr), i.get('co', ''), (rt or {}).get('cad', ''), prim_loja.get(c, ''), compl.get(c, ''), hub.get(c)])
-    fatos_l = [[k[0], k[1], k[2], k[3], round(v[0], 2), round(v[1], 2), round(v[2], 2)] for k, v in sorted(fatos.items())]
+    fatos_l = [[k[0], k[1], k[2], k[3], round(v[0], 2), round(v[1], 2), round(v[2], 2), k[4], k[5]] for k, v in sorted(fatos.items())]
     dados = dict(
         meta=dict(geradoEm=time.strftime('%Y-%m-%d %H:%M'), dadosAte=ultima.strftime('%Y-%m-%d'), diaCorte=ultima.day,
                   planilha=os.path.basename(a.planilha), ritmo=os.path.basename(a.ritmo)),
         grupos=dims['grupo'], classes=dims['classe'], linhas=dims['linha'], canais=dims['canal'], posicoes=postipos,
-        fornecedores=dims['forn'], compradores=dims['comp'],
+        fornecedores=dims['forn'], compradores=dims['comp'], lojas=dims['loja'], ufs=dims['uf'],
+        lojaTipo=[(loja_canal[l].most_common(1)[0][0] if loja_canal[l] else '') for l in dims['loja']],
         aliases={k: sorted(v) for k, v in aliases.items() if len(v) > 1},
         conf=[[k[0], k[1], k[2], round(v[0], 2), round(v[1], 2), round(v[2], 2)] for k, v in sorted(conf.items())],
         # item: [cod, nome, grupo, classe, linha, posTipo, situação, prazo, foraLinha, disp, prev, preco, custo, ritmo, foto, link, fornecedor, comprador, fabricante, nºFornecedores, classeNaPlanilha(se mudou), cadastro, 1ªVendaEmLoja, 1ªEntradaEmLoja(complementos.csv), [unidades por mês 2026, valor Hub por mês 2026]]
         itens=out_itens,
-        # fato: [item, aaaamm, canal, f(2=mesmo período, 1=só ano completo), rec, mg, cmv]
+        # fato: [item, aaaamm, canal, f(2=mesmo período, 1=só ano completo), rec, mg, cmv, loja, uf]
         fatos=fatos_l)
     os.makedirs(os.path.join(AQUI, 'public'), exist_ok=True)
     dest = os.path.join(AQUI, 'public', 'dados.js')

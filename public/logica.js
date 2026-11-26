@@ -31,11 +31,14 @@
     function consulta(f, chave, extra) {
       const ok = itemOk(f), res = new Map();
       const canalOk = f.canais ? D.canais.map(c => f.canais.has(c)) : null;
+      const lojaOk = f.lojas ? (D.lojas || []).map(c => f.lojas.has(c)) : null, ufOk = f.ufs ? (D.ufs || []).map(c => f.ufs.has(c)) : null;
       const fmin = f.modo === 'mesmo' ? 2 : 1;
       for (let n = 0; n < fatos.length; n++) {
         const x = fatos[n];
         if (x[3] < fmin || !ok[x[0]]) continue;
         if (canalOk && !canalOk[x[2]]) continue;
+        if (lojaOk && !lojaOk[x[7]]) continue;
+        if (ufOk && !ufOk[x[8]]) continue;
         const ano = Math.floor(x[1] / 100), mes = x[1] % 100;
         if (f.meses && !f.meses.has(mes)) continue;
         const it = itens[x[0]];
