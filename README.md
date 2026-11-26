@@ -45,6 +45,10 @@ Sempre sobre o **total inteiro**, mesmo com filtros ligados: classe ÷ total do 
 - Item = código (9 primeiros caracteres do Recurso): a dinâmica separa o mesmo código por nome antigo/novo; o app une.
 - Posição = coluna Situação do relatório Ritmo (Imediata/Encomenda/Prazo/Estoque loja/Suspensa/Sem posição; "FL" = fora de linha).
 
+## Vendas atrasadas: estimativa pela API (Innovaro/Hub)
+Decisão do William (26/11/2026): os dias que a planilha ainda não tem são preenchidos com as vendas do Innovaro (`vendas_loja.json` do Hub, atualizado todo dia) até D-1. Regras: valor do Hub × fator (planilha ÷ Hub nos últimos 60 dias reais; hoje 1,003); CMV e margem pela relação real da classe (últimos 90 dias); sem loja/estado (aparecem como "API (sem loja)"). Margem de erro de alguns %. O app avisa "real até DD/MM; de DD/MM em diante estimado". Quando o Comparativo novo chegar, os dias viram reais sozinhos. Também sobe o corte do "mesmo período" para o último dia (nos dois anos), então novembro/2026 é comparado com nov/2025 até o mesmo dia.
+Conferência: os dias reais continuam batendo com a planilha (8 conferências, `conf` só dos dias reais).
+
 ## Rotina diária (só base real)
 `diario.py` (chamado por `atualizar-receita-diario.bat`, Agendador do Windows ~09:20): espera o Ritmo **de hoje** (`../Ritmo_Diario` ou Downloads, até 11:30; sem ele **não publica**), usa o `Comparativo_Anual*.xlsm/.xlsx` mais novo (`../Comparativo_Diario` ou Downloads) para as vendas, roda `gerar.py`, confere que as vendas nunca voltam no tempo, monta o `dist` e publica no Firebase. Resultado em `dados/ultimo-status.json` e `atualizar-receita.log`. O app mostra "Vendas até DD/MM · posições do Ritmo de DD/MM" e fica **vermelho** quando as vendas estão atrasadas (> 3 dias). **Para as vendas ficarem em dia, salve o Comparativo atualizado em `../Comparativo_Diario`.**
 Agendar (uma vez): `schtasks /Create /TN "Receita DEC - diario" /TR "<pasta>bra-receita-dectualizar-receita-diario.bat" /SC DAILY /ST 09:20`

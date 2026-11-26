@@ -15,7 +15,7 @@ Regras (conferidas contra as tabelas dinâmicas da própria planilha):
   Flag "Excluir"     (col. V) = 'n'  -> mesmo período em todos os meses (dias 1..N de cada mês)
   Linhas de comprador "Produtos para Venda"/"Pré série" já vêm marcadas 's' nas duas flags (ficam fora).
 """
-import argparse, csv, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request, collections
+import argparse, datetime, csv, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request, collections
 from concurrent.futures import ThreadPoolExecutor
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -255,16 +255,39 @@ def main():
     ult = {}
     prim_loja = {}     # código -> data da 1ª venda em loja física (Tipo Loja RJ ou SP), base a partir de 01/01/2025
     ultima = max(r['emi'] for r in rows)
+    real_ate = ultima.date()          # último dia com venda REAL (planilha)
+    hj = None
+    if os.path.exists(a.hub):
+        with open(a.hub, encoding='utf-8') as fh:
+            hj = json.load(fh)
+    # data final = último dia completo do Hub (D-1), se for depois da planilha; os dias entre as duas datas são ESTIMADOS pelo Hub
+    cutoff = real_ate
+    if hj and hj.get('ate'):
+        cand = datetime.date.fromisoformat(hj['ate']) - datetime.timedelta(days=1)
+        if cand > real_ate: cutoff = cand
+    dia = cutoff.day
+
+    def flag_dia(dd):
+        """2 = dentro de "dias 1..dia do mês" (também ano comparável); 1 = só ano comparável; 0 = fora (mês corrente e o mesmo mês do ano anterior, depois do dia de corte)"""
+        if dd.day <= dia: return 2
+        return 0 if (dd.month == cutoff.month and dd.year in (cutoff.year, cutoff.year - 1)) else 1
+
+    def flags(r):
+        return 0 if norm(r['comprador']) in ('produtos para venda', 'pre serie') else flag_dia(r['emi'].date())
+    rec_real_dia = collections.defaultdict(float)             # dia -> receita real (para calibrar a estimativa)
+    cls_acc = collections.defaultdict(lambda: [0.0, 0.0, 0.0])  # classe -> rec, mg, cmv reais dos últimos 90 dias
+    cod_cls = {}
     for r in rows:
         txt = str(r['rec_nome'] or '')
         cod = txt[:9].lower()
         if norm(r['comprador']) not in ('produtos para venda', 'pre serie') and (r['rec'] or 0) > 0 and r['tipoloja'] in ('RJ', 'SP'):
             d0 = r['emi'].strftime('%Y-%m-%d')
             if cod not in prim_loja or d0 < prim_loja[cod]: prim_loja[cod] = d0
-        if r['exclano'] != 'n' and r['excl'] != 'n': continue   # fora das duas visões
+        fg_ = flags(r)
+        if fg_ == 0: continue   # fora das duas visões
         fl = limpa_forn(r['forn']); aliases[fl].add(str(r['forn']).strip())
         forn_rec[txt_cod(r)][fl] += r['rec'] or 0
-        for modo, ok in (('ano', r['exclano'] == 'n'), ('mesmo', r['excl'] == 'n')):
+        for modo, ok in (('ano', fg_ >= 1), ('mesmo', fg_ == 2)):
             if ok:
                 c = conf[(modo, r['grupo'], r['emi'].year)]; c[0] += r['rec'] or 0; c[1] += r['mg'] or 0; c[2] += abs(r['cmv'] or 0)
         nome = txt[12:] if txt[9:12] == ' - ' else txt[9:].lstrip(' -')
@@ -274,28 +297,50 @@ def main():
                 ipos[cod] = len(itens); itens.append(dict(cod=cod))
             itens[ipos[cod]].update(g=di('grupo', r['grupo']), c=di('classe', classe_catalogo(r['grupo'], r['classe'], nome)), co=(r['classe'] if classe_catalogo(r['grupo'], r['classe'], nome) != r['classe'] else ''), l=di('linha', r['linha']), cp=di('comp', r['comprador']))
         ym = r['emi'].year * 100 + r['emi'].month
-        f = 2 if r['excl'] == 'n' else 1
+        f = fg_
         loja_canal[str(r['loja'])][str(r['tipoloja'])] += 1
         k = (ipos[cod], ym, di('canal', r['tipoloja']), f, di('loja', r['loja']), di('uf', r['uf']))
         v = fatos[k]; v[0] += r['rec'] or 0; v[1] += r['mg'] or 0; v[2] += abs(r['cmv'] or 0)
+        cn = classe_catalogo(r['grupo'], r['classe'], nome); cod_cls[cod] = cn
+        rec_real_dia[r['emi'].date()] += r['rec'] or 0
+        if r['emi'].date() > real_ate - datetime.timedelta(days=90):
+            ca = cls_acc[cn]; ca[0] += r['rec'] or 0; ca[1] += r['mg'] or 0; ca[2] += abs(r['cmv'] or 0)
     compl = ler_complementos()
     # unidades e valor por mês (2026) do Hub/Innovaro, até o mesmo dia da planilha; só para os itens DEC
     hub = {}
-    if os.path.exists(a.hub):
-        with open(a.hub, encoding='utf-8') as fh:
-            hj = json.load(fh)
-        corte = ultima.strftime('%Y-%m-%d'); dec = {i['cod'] for i in itens}
-        for k, dias in hj.get('prod', {}).items():
-            c = re.sub(r'\s+', '', str(k)).lower()[:9]
-            if c not in dec: continue
+    fator = None
+    if hj:
+        corte = cutoff.strftime('%Y-%m-%d'); dec = {i['cod'] for i in itens}
+        prod = {re.sub(r'\s+', '', str(k)).lower()[:9]: dias for k, dias in hj.get('prod', {}).items()}
+        prod = {c: d for c, d in prod.items() if c in dec}
+        for c, dias in prod.items():
             u, v = [0] * 12, [0.0] * 12
             for d, (q, val) in dias.items():
                 if d.startswith('2026-') and d <= corte:
                     m = int(d[5:7]) - 1; u[m] += q; v[m] += val
             if any(u): hub[c] = [u, [round(x, 2) for x in v]]
         log(f'Hub: unidades de {len(hub)} itens DEC até {corte}')
+        if cutoff > real_ate:
+            # fator Hub -> planilha: últimos 60 dias reais (a relação oscila ao longo do ano)
+            w0 = real_ate - datetime.timedelta(days=59)
+            h_win = sum(val for dias in prod.values() for d, (q, val) in dias.items() if w0 <= datetime.date.fromisoformat(d) <= real_ate)
+            r_win = sum(v for d, v in rec_real_dia.items() if w0 <= d <= real_ate)
+            fator = r_win / h_win if h_win else 1.0
+            rat = {k: ((x[1] / x[0]) if x[0] > 0 else 0.35, (x[2] / x[0]) if x[0] > 0 else 0.45) for k, x in cls_acc.items()}   # classe -> (mg/rec, cmv/rec)
+            canal_e, loja_e, uf_e = di('canal', 'Estimado (API)'), di('loja', 'API (sem loja)'), di('uf', 'ND')
+            loja_canal['API (sem loja)']['Estimado'] += 1
+            n_est = 0; rec_est = 0.0
+            for c, dias in prod.items():
+                custo = (ritmo.get(c) or {}).get('custo'); mgp, cmvp = rat.get(cod_cls.get(c), (0.35, 0.45))
+                for d, (q, val) in dias.items():
+                    dd = datetime.date.fromisoformat(d)
+                    if not (real_ate < dd <= cutoff): continue
+                    rec = val * fator; cm = rec * cmvp   # CMV pela relação real da classe (o custo do Ritmo é menor que o CMV real e inflava o markup)
+                    k = (ipos[c], dd.year * 100 + dd.month, canal_e, flag_dia(dd), loja_e, uf_e)
+                    v = fatos[k]; v[0] += rec; v[1] += rec * mgp; v[2] += abs(cm); n_est += 1; rec_est += rec
+            log(f'ESTIMADO pelo Hub de {(real_ate + datetime.timedelta(days=1))} a {cutoff}: {n_est} linhas, R$ {rec_est:,.0f} (fator Hub->planilha {fator:.3f}, últimos 60 dias reais)')
     else:
-        log('Hub não encontrado: sem unidades/preço vendido.')
+        log('Hub não encontrado: sem unidades/preço vendido nem estimativa.')
     cods = [i['cod'] for i in itens]
     cache = fotos(cods, ritmo) if not a.sem_fotos else (json.load(open(os.path.join(AQUI, 'dados', 'fotos.json'), encoding='utf-8')) if os.path.exists(os.path.join(AQUI, 'dados', 'fotos.json')) else {})
 
@@ -314,7 +359,7 @@ def main():
         out_itens.append([c, nomes[c], i['g'], i['c'], i['l']] + p + [ft.get('url', ''), ft.get('link', ''), di('forn', fprin), i['cp'], (rt or {}).get('fab', ''), len(fr), i.get('co', ''), (rt or {}).get('cad', ''), prim_loja.get(c, ''), compl.get(c, ''), hub.get(c)])
     fatos_l = [[k[0], k[1], k[2], k[3], round(v[0], 2), round(v[1], 2), round(v[2], 2), k[4], k[5]] for k, v in sorted(fatos.items())]
     dados = dict(
-        meta=dict(geradoEm=time.strftime('%Y-%m-%d %H:%M'), dadosAte=ultima.strftime('%Y-%m-%d'), diaCorte=ultima.day,
+        meta=dict(geradoEm=time.strftime('%Y-%m-%d %H:%M'), dadosAte=cutoff.strftime('%Y-%m-%d'), realAte=real_ate.strftime('%Y-%m-%d'), estimadoDe=((real_ate + datetime.timedelta(days=1)).strftime('%Y-%m-%d') if cutoff > real_ate else ''), fatorEst=(round(fator, 4) if fator else None), diaCorte=cutoff.day,
                   planilha=os.path.basename(a.planilha), ritmo=os.path.basename(a.ritmo)),
         grupos=dims['grupo'], classes=dims['classe'], linhas=dims['linha'], canais=dims['canal'], posicoes=postipos,
         fornecedores=dims['forn'], compradores=dims['comp'], lojas=dims['loja'], ufs=dims['uf'],

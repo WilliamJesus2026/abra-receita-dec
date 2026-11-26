@@ -61,9 +61,10 @@ def comparativo_mais_novo():
 
 
 def dados_ate(arq='public/dados.js'):
+    """último dia de venda REAL (planilha); os dias estimados pela API não contam"""
     try:
         t = open(os.path.join(AQUI, arq), encoding='utf-8').read()
-        return re.search(r'"dadosAte":"([\d-]+)"', t).group(1)
+        return re.search(r'"realAte":"([\d-]+)"', t).group(1)
     except Exception:
         return ''
 
